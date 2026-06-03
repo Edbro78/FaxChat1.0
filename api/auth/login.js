@@ -1,5 +1,6 @@
-const { parseFaxUsername } = require('../lib/fax-utils');
-const { signInWithInternalEmail, adminFetchProfileByUsername, readJsonBody } = require('../lib/supabase-server');
+const { parseFaxUsername } = require('../../lib/fax-utils');
+const { verifyLogin, readJsonBody } = require('../../lib/supabase-server');
+const { signSupabaseJwt } = require('../../lib/jwt');
 
 module.exports = async (req, res) => {
     if (req.method !== 'POST') {
@@ -20,17 +21,23 @@ module.exports = async (req, res) => {
             return;
         }
 
-        const profile = await adminFetchProfileByUsername(parsed.username);
+        const profile = await verifyLogin(parsed.username, body.password);
         if (!profile) {
             res.status(401).json({ error: 'Feil brukernavn eller passord' });
             return;
         }
 
-        const session = await signInWithInternalEmail(profile.auth_email, body.password);
+        const jwtSecret = process.env.SUPABASE_JWT_SECRET;
+        if (!jwtSecret) {
+            res.status(500).json({ error: 'SUPABASE_JWT_SECRET mangler i Vercel' });
+            return;
+        }
+
+        const accessToken = signSupabaseJwt(profile.id, jwtSecret);
 
         res.status(200).json({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
+            access_token: accessToken,
+            refresh_token: accessToken,
             profile: {
                 id: profile.id,
                 name: profile.name,
@@ -40,7 +47,6 @@ module.exports = async (req, res) => {
             }
         });
     } catch (e) {
-        const status = e.message.includes('passord') ? 401 : 500;
-        res.status(status).json({ error: e.message || 'Innlogging feilet' });
+        res.status(500).json({ error: e.message || 'Innlogging feilet' });
     }
 };

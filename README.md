@@ -1,46 +1,39 @@
 # FaxChat v1.2
 
-Retro faksmaskin — brukere logger inn med **brukernavn + passord** (f.eks. `Edvard01`).
+Retro faksmaskin — **kun brukernavn + passord**. Ingen e-post noe sted.
 
-## Admin: opprett brukere i Supabase
+## Admin: opprett brukere i Supabase SQL Editor
 
-Se **`supabase/opprett-bruker.sql`** — to steg:
+**Ikke** bruk Authentication → Users (krever e-post).
 
-1. **Authentication → Users → Add user**  
-   - User ID: `edvard01@fax.internal` (Supabase sitt tekniske felt — ikke ekte e-post)  
-   - Password: passordet brukeren skal ha  
+```sql
+select public.create_faxchat_user('Edvard01', 'passord123');
+```
 
-2. **SQL Editor:**  
-   ```sql
-   select public.register_faxchat_profile('Edvard01');
-   ```
+Se `supabase/opprett-bruker.sql`.
 
-Brukeren logger inn på FaxChat med **Edvard01** + passord.
+| Brukernavn | Faksnummer |
+|------------|------------|
+| Edvard01 | 01 |
+| Bernt33 | 33 |
 
-## Supabase-oppsett
+## Supabase
 
-1. Kjør `supabase/schema.sql` i SQL Editor  
-2. Slå av «Enable sign ups» under Email-auth  
-3. Opprett brukere som beskrevet over  
+1. Kjør `supabase/schema.sql` (eller `migration-no-email-auth.sql` + schema-funksjoner)
+2. Opprett brukere med `create_faxchat_user` i SQL Editor
 
-## Vercel (Environment Variables)
+## Vercel Environment Variables
 
-Prosjekt-URL: `https://mswgcwwpvkxvkvwejiab.supabase.co`
-
-| Variabel | Verdi |
-|----------|--------|
+| Variabel | Hvor |
+|----------|------|
 | `SUPABASE_URL` | `https://mswgcwwpvkxvkvwejiab.supabase.co` |
-| `SUPABASE_ANON_KEY` | Supabase → Settings → API → **publishable** key (`sb_publishable_...`) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → **secret** key (`sb_secret_...`) |
+| `SUPABASE_ANON_KEY` | publishable key (`sb_publishable_...`) |
+| `SUPABASE_JWT_SECRET` | Supabase → Settings → API → **JWT Secret** |
 
-Se også `env.example`.
-
-## Deploy
-
-GitHub → Vercel. Test `/api/config`.
+`SUPABASE_SERVICE_ROLE_KEY` trengs **ikke** lenger til innlogging.
 
 ## Brukerflyt
 
-1. Logg inn med `Edvard01` + passord  
-2. Se innkommende faks til ditt nummer (`01`)  
-3. Send fax til andre via kartotek / tastatur  
+1. Logg inn med `Edvard01` + passord
+2. Se innkommende faks til STN 01
+3. Send fax til andre stasjoner
