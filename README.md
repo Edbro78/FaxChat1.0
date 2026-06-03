@@ -1,45 +1,42 @@
 # FaxChat v1.2
 
-Retro faksmaskin — **kun brukernavn + passord**, ingen e-post.
+Retro faksmaskin — brukere logger inn med **brukernavn + passord** (f.eks. `Edvard01`).
 
-## Brukernavn
+## Admin: opprett brukere i Supabase
 
-Format: **Kortnavn + 2 siffer** → `Edvard01`
+Se **`supabase/opprett-bruker.sql`** — to steg:
 
-| | |
-|---|---|
-| Innlogging | `Edvard01` + passord |
-| Navn | Edvard |
-| Faksnummer | `01` |
+1. **Authentication → Users → Add user**  
+   - User ID: `edvard01@fax.internal` (Supabase sitt tekniske felt — ikke ekte e-post)  
+   - Password: passordet brukeren skal ha  
 
-## Admin: opprett brukere
+2. **SQL Editor:**  
+   ```sql
+   select public.register_faxchat_profile('Edvard01');
+   ```
 
-Se **`supabase/opprett-bruker.sql`** eller bruk **`/admin.html`**.
+Brukeren logger inn på FaxChat med **Edvard01** + passord.
 
-Du trenger disse i **Vercel → Environment Variables**:
+## Supabase-oppsett
 
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `ADMIN_SECRET` (din hemmelige admin-nøkkel)
+1. Kjør `supabase/schema.sql` i SQL Editor  
+2. Slå av «Enable sign ups» under Email-auth  
+3. Opprett brukere som beskrevet over  
 
-Brukere opprettes **ikke** i Supabase Dashboard — kun via admin-siden eller API.
+## Vercel (Environment Variables)
 
-## Supabase
-
-1. Kjør `supabase/schema.sql`
-2. Slå av «Enable sign ups» under Email-auth
-3. Sett miljøvariabler i Vercel og opprett brukere via `admin.html`
+| Variabel | Formål |
+|----------|--------|
+| `SUPABASE_URL` | API URL |
+| `SUPABASE_ANON_KEY` | anon public |
+| `SUPABASE_SERVICE_ROLE_KEY` | innlogging via brukernavn |
 
 ## Deploy
 
-Push til GitHub → Vercel redeploy. Test `/api/config`.
+GitHub → Vercel. Test `/api/config`.
 
-## Lokal utvikling
+## Brukerflyt
 
-```bash
-cp config.example.js config.js
-npm run dev
-```
-
-For innlogging lokalt: kjør `vercel dev` med alle miljøvariabler, eller deploy til Vercel.
+1. Logg inn med `Edvard01` + passord  
+2. Se innkommende faks til ditt nummer (`01`)  
+3. Send fax til andre via kartotek / tastatur  

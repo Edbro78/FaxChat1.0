@@ -1,43 +1,36 @@
-# Opprette brukere (admin) — ingen e-post
+-- ═══════════════════════════════════════════════════════════════
+-- OPPRETTE BRUKER I SUPABASE (admin)
+-- Brukeren logger inn med: Edvard01 + passord (ingen e-post)
+-- ═══════════════════════════════════════════════════════════════
 
-Du som admin lager **brukernavn + passord** for hver bruker.  
-Format: **Edvard01** (Edvard, faksnummer 01).
+-- STEG 1: Supabase → Authentication → Users → Add user
+--
+--   User ID (Supabase sitt obligatoriske felt — IKKE ekte e-post):
+--     edvard01@fax.internal
+--     (mønster: {brukernavn med små bokstaver}@fax.internal)
+--
+--   Password:  passordet brukeren skal logge inn med
+--   Auto Confirm User: ON
+--
+-- Eksempel for brukernavn Edvard01:
+--   User ID:  edvard01@fax.internal
+--   Password: ditt-valgte-passord
 
-## 1. Miljøvariabler i Vercel
+-- STEG 2: SQL Editor — koble bruker til FaxChat-profil
+-- (kjør register_faxchat_profile etter schema.sql er kjørt)
 
-| Variabel | Hvor finner du den |
-|----------|-------------------|
-| `SUPABASE_URL` | Supabase → Settings → API |
-| `SUPABASE_ANON_KEY` | Supabase → Settings → API |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → service_role (hemmelig) |
-| `ADMIN_SECRET` | Velg et sterkt passord du husker — din admin-nøkkel |
+select public.register_faxchat_profile('Edvard01');
 
-## 2. Opprett bruker (velg én metode)
+-- Flere eksempler:
+-- select public.register_faxchat_profile('Bernt33');
+-- select public.register_faxchat_profile('Admin99');
 
-### A) Admin-side (enklest)
+-- Resultat for Edvard01:
+--   username / fax_label: Edvard01
+--   name: Edvard
+--   station_id (faksnummer): 01
 
-1. Gå til `https://ditt-domene.vercel.app/admin.html`
-2. Fyll inn **Admin-nøkkel** (= `ADMIN_SECRET` fra Vercel)
-3. **Brukernavn:** f.eks. `Edvard01`
-4. **Passord:** det brukeren skal logge inn med
-5. Klikk **Opprett bruker**
-
-### B) curl
-
-```bash
-curl -X POST https://ditt-domene.vercel.app/api/admin/create-user \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer DIN_ADMIN_SECRET" \
-  -d "{\"username\":\"Edvard01\",\"password\":\"hemmelig\"}"
-```
-
-## 3. Brukeren logger inn
-
-- **Brukernavn:** `Edvard01`
-- **Passord:** det du satte
-
-Ingen e-post noe sted.
-
-## Første admin-bruker
-
-Opprett f.eks. `Admin99` (STN 99) via admin.html etter at `ADMIN_SECRET` er satt i Vercel.
+-- ═══════════════════════════════════════════════════════════════
+-- SLETT BRUKER
+-- ═══════════════════════════════════════════════════════════════
+-- Slett under Authentication → Users (profiles slettes automatisk via cascade)
