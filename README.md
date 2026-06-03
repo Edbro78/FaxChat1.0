@@ -31,7 +31,7 @@ Prosjekt-URL: `https://mswgcwwpvkxvkvwejiab.supabase.co`
 |----------|--------|
 | `SUPABASE_URL` | `https://mswgcwwpvkxvkvwejiab.supabase.co` |
 | `SUPABASE_ANON_KEY` | Supabase → Settings → API → anon public |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → service_role |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → **secret** key (`sb_secret_...`) |
 
 Se også `env.example`.
 
