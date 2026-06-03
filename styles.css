@@ -41,6 +41,8 @@ body {
     box-shadow: 1px 1px 0px #000;
     transition: all 0.05s ease;
     image-rendering: pixelated;
+    cursor: pointer;
+    pointer-events: auto;
 }
 
 .btn-retro:active {
@@ -62,6 +64,8 @@ body {
     box-shadow: 2px 2px 0px #000;
     color: #fff;
     text-shadow: 1px 1px 2px #000;
+    cursor: pointer;
+    pointer-events: auto;
 }
 
 .btn-hardware-red:active {
@@ -95,6 +99,16 @@ body {
     top: 20px;
     min-height: 380px;
     pointer-events: none;
+}
+
+.fax-compose-sheet {
+    background-color: var(--paper-color);
+    background-image: radial-gradient(#e4dfd0 8%, transparent 8%);
+    background-size: 12px 12px;
+    border: 1px solid #d4cca9;
+    box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.15);
+    position: relative;
+    pointer-events: auto;
 }
 
 .fax-paper-sheet.stack-front {
@@ -144,6 +158,18 @@ body {
     border-top: 15px solid #bdab8c;
     box-shadow: 1px 3px 5px rgba(0,0,0,0.25);
     transition: transform 0.4s ease;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+button {
+    pointer-events: auto;
+}
+
+textarea,
+input {
+    pointer-events: auto;
+    cursor: text;
 }
 
 .led-green {
