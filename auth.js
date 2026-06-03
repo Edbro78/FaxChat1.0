@@ -1,17 +1,56 @@
 let supabaseClient = null;
 let currentProfile = null;
+let configLoaded = false;
 
 const AUTH_EMAIL_DOMAIN = 'faxchat.no';
 
-/** Brukernavn "admin" → admin@faxchat.no for Supabase Auth */
 function usernameToEmail(username) {
     const value = username.trim().toLowerCase();
     if (value.includes('@')) return value;
     return `${value}@${AUTH_EMAIL_DOMAIN}`;
 }
 
+function loadScriptConfig() {
+    return new Promise((resolve) => {
+        if (window.FAXCHAT_CONFIG?.url && window.FAXCHAT_CONFIG?.anonKey) {
+            resolve(true);
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = 'config.js';
+        script.onload = () => resolve(Boolean(window.FAXCHAT_CONFIG?.url && window.FAXCHAT_CONFIG?.anonKey));
+        script.onerror = () => resolve(false);
+        document.head.appendChild(script);
+    });
+}
+
+async function loadFaxchatConfig() {
+    if (configLoaded && window.FAXCHAT_CONFIG?.url) return true;
+
+    if (window.FAXCHAT_CONFIG?.url && window.FAXCHAT_CONFIG?.anonKey) {
+        configLoaded = true;
+        return true;
+    }
+
+    try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        if (res.ok && data.url && data.anonKey) {
+            window.FAXCHAT_CONFIG = { url: data.url, anonKey: data.anonKey };
+            configLoaded = true;
+            return true;
+        }
+    } catch (_) {
+        /* lokal dev uten Vercel API */
+    }
+
+    const fromFile = await loadScriptConfig();
+    configLoaded = fromFile;
+    return fromFile;
+}
+
 function getSupabase() {
-    if (!supabaseClient && window.FAXCHAT_CONFIG) {
+    if (!supabaseClient && window.FAXCHAT_CONFIG?.url) {
         supabaseClient = window.supabase.createClient(
             window.FAXCHAT_CONFIG.url,
             window.FAXCHAT_CONFIG.anonKey
@@ -28,6 +67,12 @@ function showLogin() {
 function showApp() {
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('appScreen').classList.remove('hidden');
+}
+
+function showConfigError(message) {
+    document.getElementById('loginError').innerText = message;
+    document.getElementById('loginError').classList.remove('hidden');
+    showLogin();
 }
 
 async function loadCurrentProfile() {
@@ -50,8 +95,6 @@ async function loadCurrentProfile() {
 
 async function handleLoginSubmit(event) {
     event.preventDefault();
-    const email = usernameToEmail(document.getElementById('loginUsername').value);
-    const password = document.getElementById('loginPassword').value;
     const errEl = document.getElementById('loginError');
     const btn = document.getElementById('loginSubmitBtn');
 
@@ -60,6 +103,12 @@ async function handleLoginSubmit(event) {
     btn.innerText = 'KOBLER TIL...';
 
     try {
+        if (!(await loadFaxchatConfig())) {
+            throw new Error('Supabase er ikke konfigurert. Legg SUPABASE_URL og SUPABASE_ANON_KEY i Vercel → Environment Variables, deretter Redeploy.');
+        }
+
+        const email = usernameToEmail(document.getElementById('loginUsername').value);
+        const password = document.getElementById('loginPassword').value;
         const sb = getSupabase();
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -85,18 +134,18 @@ async function handleLoginSubmit(event) {
 
 async function logout() {
     const sb = getSupabase();
-    await sb.auth.signOut();
+    if (sb) await sb.auth.signOut();
     currentProfile = null;
     showLogin();
     document.getElementById('loginPassword').value = '';
 }
 
 async function bootstrapAuth() {
-    if (!window.FAXCHAT_CONFIG?.url) {
-        document.getElementById('loginError').innerText =
-            'config.js mangler. Kjør build-config eller kopier config.example.js.';
-        document.getElementById('loginError').classList.remove('hidden');
-        showLogin();
+    const ok = await loadFaxchatConfig();
+    if (!ok) {
+        showConfigError(
+            'Supabase mangler. I Vercel: Settings → Environment Variables → SUPABASE_URL + SUPABASE_ANON_KEY → Redeploy. Lokalt: kopier config.example.js til config.js.'
+        );
         return;
     }
 
