@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FaxChat Admin — Opprett bruker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 bg-[#2b3a4a]">
+    <div class="max-w-md w-full bg-[#d6cebf] bevel-out p-6 shadow-2xl font-mono text-stone-800">
+        <h1 class="text-xl font-bold mb-1">FAXCHAT ADMIN</h1>
+        <p class="text-xs text-stone-600 mb-4">Opprett brukernavn + passord. Ingen e-post.</p>
+
+        <form id="adminForm" class="flex flex-col gap-3 text-sm">
+            <div>
+                <label class="text-[10px] font-bold uppercase">Admin-nøkkel</label>
+                <input id="adminSecret" type="password" required class="w-full border-2 border-stone-400 px-2 py-1 mt-1" placeholder="ADMIN_SECRET fra Vercel" />
+            </div>
+            <div>
+                <label class="text-[10px] font-bold uppercase">Brukernavn (Kortnavn + nr)</label>
+                <input id="newUsername" type="text" required pattern="[A-Za-z][A-Za-z0-9]*\d{2}" placeholder="Edvard01" class="w-full border-2 border-stone-400 px-2 py-1 mt-1" />
+            </div>
+            <div>
+                <label class="text-[10px] font-bold uppercase">Passord</label>
+                <input id="newPassword" type="text" required minlength="3" class="w-full border-2 border-stone-400 px-2 py-1 mt-1" />
+            </div>
+            <div>
+                <label class="text-[10px] font-bold uppercase">Beskrivelse (valgfri)</label>
+                <input id="newDescription" type="text" class="w-full border-2 border-stone-400 px-2 py-1 mt-1" />
+            </div>
+            <p id="adminMsg" class="hidden text-xs"></p>
+            <button type="submit" class="btn-hardware-red py-2 text-xs font-bold uppercase">Opprett bruker</button>
+        </form>
+        <p class="text-[10px] text-stone-500 mt-4"><a href="/" class="underline">← Tilbake til FaxChat</a></p>
+    </div>
+    <script>
+        document.getElementById('adminForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = document.getElementById('adminMsg');
+            msg.classList.add('hidden');
+            try {
+                const res = await fetch('/api/admin/create-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + document.getElementById('adminSecret').value
+                    },
+                    body: JSON.stringify({
+                        username: document.getElementById('newUsername').value.trim(),
+                        password: document.getElementById('newPassword').value,
+                        description: document.getElementById('newDescription').value.trim()
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Feil');
+                msg.className = 'text-xs text-green-800';
+                msg.innerText = `Opprettet: ${data.username} (STN ${data.station_id})`;
+                msg.classList.remove('hidden');
+                document.getElementById('newUsername').value = '';
+                document.getElementById('newPassword').value = '';
+            } catch (err) {
+                msg.className = 'text-xs text-red-700';
+                msg.innerText = err.message;
+                msg.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>

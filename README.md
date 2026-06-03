@@ -1,37 +1,39 @@
 # FaxChat v1.2
 
-Retro faksmaskin med **Supabase** (auth + database) og frontend på **Vercel**.
+Retro faksmaskin — **kun brukernavn + passord**, ingen e-post.
 
-## Brukernavn (ikke e-post)
+## Brukernavn
 
-Hver bruker har **Kortnavn + 2 siffer**, f.eks. **Edvard01**:
+Format: **Kortnavn + 2 siffer** → `Edvard01`
 
-| Felt | Eksempel Edvard01 |
-|------|-------------------|
+| | |
+|---|---|
 | Innlogging | `Edvard01` + passord |
 | Navn | Edvard |
-| Faksnummer (STN) | `01` |
-| Kartotek | `Edvard01` |
+| Faksnummer | `01` |
 
-Supabase Auth krever teknisk et «e-post»-felt ved opprettelse — bruk **intern ID**, ikke ekte e-post:
+## Admin: opprett brukere
 
-`Edvard01` → `edvard01@faxchat.no` i Authentication → Users
+Se **`supabase/opprett-bruker.sql`** eller bruk **`/admin.html`**.
 
-Full guide: **`supabase/opprett-bruker.sql`**
+Du trenger disse i **Vercel → Environment Variables**:
 
-## Supabase-oppsett
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ADMIN_SECRET` (din hemmelige admin-nøkkel)
 
-1. Opprett prosjekt på [supabase.com](https://supabase.com).
-2. Kjør `supabase/schema.sql` i **SQL Editor**.
-3. **Authentication → Providers → Email**: slå **av** «Enable sign ups».
-4. Opprett brukere — se `supabase/opprett-bruker.sql`.
-5. Innloggede brukere ser **kun** faks sendt til deres `station_id`.
+Brukere opprettes **ikke** i Supabase Dashboard — kun via admin-siden eller API.
 
-## Vercel-deploy
+## Supabase
 
-1. Koble [FaxChat1.0](https://github.com/Edbro78/FaxChat1.0) til Vercel.
-2. **Environment Variables:** `SUPABASE_URL`, `SUPABASE_ANON_KEY` (Production).
-3. Redeploy. Test: `/api/config` skal returnere JSON.
+1. Kjør `supabase/schema.sql`
+2. Slå av «Enable sign ups» under Email-auth
+3. Sett miljøvariabler i Vercel og opprett brukere via `admin.html`
+
+## Deploy
+
+Push til GitHub → Vercel redeploy. Test `/api/config`.
 
 ## Lokal utvikling
 
@@ -40,8 +42,4 @@ cp config.example.js config.js
 npm run dev
 ```
 
-## Brukerflyt
-
-1. Logg inn med f.eks. `Edvard01` og passord.
-2. **Lese innkommende** — faks til ditt nummer (f.eks. STN 01).
-3. **Sende ny fax** — tast mottakers nummer (f.eks. `22`) eller velg i kartotek.
+For innlogging lokalt: kjør `vercel dev` med alle miljøvariabler, eller deploy til Vercel.

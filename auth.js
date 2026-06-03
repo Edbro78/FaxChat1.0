@@ -2,28 +2,17 @@ let supabaseClient = null;
 let currentProfile = null;
 let configLoaded = false;
 
-const AUTH_EMAIL_DOMAIN = 'faxchat.no';
 const FAX_USERNAME_PATTERN = /^[A-Za-z][A-Za-z0-9]*\d{2}$/;
 
-/**
- * Edvard01 → { name: 'Edvard', stationId: '01', faxLabel: 'Edvard01', authEmail: 'edvard01@faxchat.no' }
- */
 function parseFaxUsername(input) {
     const raw = input.trim();
     if (!FAX_USERNAME_PATTERN.test(raw)) return null;
-
     const match = raw.match(/^([A-Za-z][A-Za-z0-9]*)(\d{2})$/);
     const nameRaw = match[1];
     const stationId = match[2];
     const name = nameRaw.charAt(0).toUpperCase() + nameRaw.slice(1).toLowerCase();
-    const faxLabel = name + stationId;
-
-    return {
-        name,
-        stationId,
-        faxLabel,
-        authEmail: `${faxLabel.toLowerCase()}@${AUTH_EMAIL_DOMAIN}`
-    };
+    const username = name + stationId;
+    return { name, stationId, username, faxLabel: username };
 }
 
 function loadScriptConfig() {
@@ -42,12 +31,10 @@ function loadScriptConfig() {
 
 async function loadFaxchatConfig() {
     if (configLoaded && window.FAXCHAT_CONFIG?.url) return true;
-
     if (window.FAXCHAT_CONFIG?.url && window.FAXCHAT_CONFIG?.anonKey) {
         configLoaded = true;
         return true;
     }
-
     try {
         const res = await fetch('/api/config');
         const data = await res.json();
@@ -56,10 +43,7 @@ async function loadFaxchatConfig() {
             configLoaded = true;
             return true;
         }
-    } catch (_) {
-        /* lokal dev uten Vercel API */
-    }
-
+    } catch (_) {}
     const fromFile = await loadScriptConfig();
     configLoaded = fromFile;
     return fromFile;
@@ -92,6 +76,7 @@ function showConfigError(message) {
 }
 
 async function loadCurrentProfile() {
+    if (currentProfile?.id) return currentProfile;
     const sb = getSupabase();
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return null;
@@ -102,10 +87,7 @@ async function loadCurrentProfile() {
         .eq('id', user.id)
         .single();
 
-    if (error || !data) {
-        console.error('Profil mangler for bruker:', error);
-        return null;
-    }
+    if (error || !data) return null;
     return data;
 }
 
@@ -120,29 +102,33 @@ async function handleLoginSubmit(event) {
 
     try {
         if (!(await loadFaxchatConfig())) {
-            throw new Error('Supabase er ikke konfigurert. Legg SUPABASE_URL og SUPABASE_ANON_KEY i Vercel → Environment Variables, deretter Redeploy.');
+            throw new Error('Supabase er ikke konfigurert. Sjekk Vercel Environment Variables.');
         }
 
         const username = document.getElementById('loginUsername').value.trim();
         const parsed = parseFaxUsername(username);
         if (!parsed) {
-            throw new Error('Brukernavn må være Kortnavn + 2 siffer, f.eks. Edvard01 (01 = faksnummer).');
+            throw new Error('Brukernavn må være Kortnavn + 2 siffer, f.eks. Edvard01.');
         }
 
         const password = document.getElementById('loginPassword').value;
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: parsed.username, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Innlogging feilet');
+
         const sb = getSupabase();
-        const { error } = await sb.auth.signInWithPassword({ email: parsed.authEmail, password });
-        if (error) throw error;
+        const { error: sessionError } = await sb.auth.setSession({
+            access_token: data.access_token,
+            refresh_token: data.refresh_token
+        });
+        if (sessionError) throw sessionError;
 
-        currentProfile = await loadCurrentProfile();
-        if (!currentProfile) {
-            await sb.auth.signOut();
-            throw new Error('Brukerkonto mangler profil. Kontakt administrator.');
-        }
-
-        if (typeof initFaxApp === 'function') {
-            await initFaxApp();
-        }
+        currentProfile = data.profile;
+        if (typeof initFaxApp === 'function') await initFaxApp();
         showApp();
     } catch (e) {
         errEl.innerText = e.message || 'Innlogging feilet.';
@@ -164,9 +150,7 @@ async function logout() {
 async function bootstrapAuth() {
     const ok = await loadFaxchatConfig();
     if (!ok) {
-        showConfigError(
-            'Supabase mangler. I Vercel: Settings → Environment Variables → SUPABASE_URL + SUPABASE_ANON_KEY → Redeploy. Lokalt: kopier config.example.js til config.js.'
-        );
+        showConfigError('Supabase mangler. Sjekk Vercel Environment Variables.');
         return;
     }
 
@@ -176,9 +160,7 @@ async function bootstrapAuth() {
     if (session) {
         currentProfile = await loadCurrentProfile();
         if (currentProfile) {
-            if (typeof initFaxApp === 'function') {
-                await initFaxApp();
-            }
+            if (typeof initFaxApp === 'function') await initFaxApp();
             showApp();
             return;
         }

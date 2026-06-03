@@ -1,9 +1,11 @@
 -- FaxChat: kjør i Supabase SQL Editor
 -- Auth: slå AV "Enable sign ups" under Authentication → Providers → Email
+-- Brukere opprettes KUN via admin (admin.html eller /api/admin/create-user) — aldri e-post
 
--- Profiler (opprettes manuelt av admin etter auth-bruker)
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
+  username text not null unique,
+  auth_email text not null unique,
   name text not null,
   station_id text not null unique check (station_id ~ '^\d{2}$'),
   fax_label text not null unique,
@@ -11,7 +13,6 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
--- Faks (mottaker identifiseres med stasjonsnummer)
 create table if not exists public.faxes (
   id uuid primary key default gen_random_uuid(),
   sender_user_id uuid not null references public.profiles (id) on delete cascade,
@@ -26,13 +27,11 @@ create index if not exists faxes_recipient_idx on public.faxes (recipient_statio
 alter table public.profiles enable row level security;
 alter table public.faxes enable row level security;
 
--- Telefonkatalog: alle innloggede kan lese
 create policy "profiles_read_authenticated"
   on public.profiles for select
   to authenticated
   using (true);
 
--- Kun egne innkommende faks
 create policy "faxes_select_incoming"
   on public.faxes for select
   to authenticated
@@ -42,7 +41,6 @@ create policy "faxes_select_incoming"
     )
   );
 
--- Sende til gyldig stasjon (ikke eget nummer)
 create policy "faxes_insert_send"
   on public.faxes for insert
   to authenticated
@@ -74,7 +72,4 @@ create policy "faxes_update_incoming"
     )
   );
 
--- Eksempel profil (etter auth-bruker opprettet — se opprett-bruker.sql):
--- Edvard01 → name Edvard, station_id 01, fax_label Edvard01
--- insert into public.profiles (id, name, station_id, fax_label, description)
--- values ('<uuid>', 'Edvard', '01', 'Edvard01', '');
+-- auth_email er intern teknisk ID — aldri synlig for brukere eller admin
