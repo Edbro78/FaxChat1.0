@@ -30,7 +30,7 @@ Prosjekt-URL: `https://mswgcwwpvkxvkvwejiab.supabase.co`
 | Variabel | Verdi |
 |----------|--------|
 | `SUPABASE_URL` | `https://mswgcwwpvkxvkvwejiab.supabase.co` |
-| `SUPABASE_ANON_KEY` | Supabase → Settings → API → anon public |
+| `SUPABASE_ANON_KEY` | Supabase → Settings → API → **publishable** key (`sb_publishable_...`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → **secret** key (`sb_secret_...`) |
 
 Se også `env.example`.
