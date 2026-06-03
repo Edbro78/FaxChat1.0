@@ -15,26 +15,16 @@ function parseFaxUsername(input) {
     return { name, stationId, username, faxLabel: username };
 }
 
-function loadScriptConfig() {
-    return new Promise((resolve) => {
-        if (window.FAXCHAT_CONFIG?.url && window.FAXCHAT_CONFIG?.anonKey) {
-            resolve(true);
-            return;
-        }
-        const script = document.createElement('script');
-        script.src = 'config.js';
-        script.onload = () => resolve(Boolean(window.FAXCHAT_CONFIG?.url && window.FAXCHAT_CONFIG?.anonKey));
-        script.onerror = () => resolve(false);
-        document.head.appendChild(script);
-    });
-}
-
 async function loadFaxchatConfig() {
-    if (configLoaded && window.FAXCHAT_CONFIG?.url) return true;
+    if (configLoaded && window.FAXCHAT_CONFIG?.url && window.FAXCHAT_CONFIG?.anonKey) {
+        return true;
+    }
+
     if (window.FAXCHAT_CONFIG?.url && window.FAXCHAT_CONFIG?.anonKey) {
         configLoaded = true;
         return true;
     }
+
     try {
         const res = await fetch('/api/config');
         const data = await res.json();
@@ -44,9 +34,9 @@ async function loadFaxchatConfig() {
             return true;
         }
     } catch (_) {}
-    const fromFile = await loadScriptConfig();
-    configLoaded = fromFile;
-    return fromFile;
+
+    configLoaded = false;
+    return false;
 }
 
 function getSupabase() {
@@ -102,13 +92,13 @@ async function handleLoginSubmit(event) {
 
     try {
         if (!(await loadFaxchatConfig())) {
-            throw new Error('Supabase er ikke konfigurert. Sjekk Vercel Environment Variables.');
+            throw new Error('Supabase-config mangler. Sjekk at public-config.js lastes.');
         }
 
         const username = document.getElementById('loginUsername').value.trim();
         const parsed = parseFaxUsername(username);
         if (!parsed) {
-            throw new Error('Brukernavn må være Kortnavn + 2 siffer, f.eks. Edvard01.');
+            throw new Error('Bruk Edvard01 — ikke e-post. Kortnavn + 2 siffer (01 = faksnummer).');
         }
 
         const password = document.getElementById('loginPassword').value;
@@ -118,7 +108,12 @@ async function handleLoginSubmit(event) {
             body: JSON.stringify({ username: parsed.username, password })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Innlogging feilet');
+        if (!res.ok) {
+            if (data.error && data.error.includes('JWT_SECRET')) {
+                throw new Error('Vercel mangler SUPABASE_JWT_SECRET (Supabase → Settings → API → JWT Secret).');
+            }
+            throw new Error(data.error || 'Feil brukernavn eller passord');
+        }
 
         const sb = getSupabase();
         const { error: sessionError } = await sb.auth.setSession({
@@ -145,12 +140,12 @@ async function logout() {
     currentProfile = null;
     showLogin();
     document.getElementById('loginPassword').value = '';
+    document.getElementById('loginUsername').value = '';
 }
 
 async function bootstrapAuth() {
-    const ok = await loadFaxchatConfig();
-    if (!ok) {
-        showConfigError('Supabase mangler. Sjekk Vercel Environment Variables.');
+    if (!(await loadFaxchatConfig())) {
+        showConfigError('Supabase-config mangler. Last siden på nytt eller sjekk deploy.');
         return;
     }
 

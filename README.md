@@ -1,39 +1,33 @@
 # FaxChat v1.2
 
-Retro faksmaskin — **kun brukernavn + passord**. Ingen e-post noe sted.
+**Ingen e-post.** Brukernavn som `Edvard01` + passord.
 
-## Admin: opprett brukere i Supabase SQL Editor
+## To systemer — ikke bland dem
 
-**Ikke** bruk Authentication → Users (krever e-post).
+| System | Bruk |
+|--------|------|
+| **FaxChat innlogging** | `Edvard01` + passord |
+| **Supabase Authentication** | **IKKE BRUK** (krever e-post) |
+
+Opprett brukere i **SQL Editor** → `supabase/LES-DETTE.md`
 
 ```sql
 select public.create_faxchat_user('Edvard01', 'passord123');
 ```
 
-Se `supabase/opprett-bruker.sql`.
+## Vercel
 
-| Brukernavn | Faksnummer |
-|------------|------------|
-| Edvard01 | 01 |
-| Bernt33 | 33 |
-
-## Supabase
-
-1. Kjør `supabase/schema.sql` (eller `migration-no-email-auth.sql` + schema-funksjoner)
-2. Opprett brukere med `create_faxchat_user` i SQL Editor
-
-## Vercel Environment Variables
+Kun **én** variabel påkrevd for innlogging:
 
 | Variabel | Hvor |
 |----------|------|
-| `SUPABASE_URL` | `https://mswgcwwpvkxvkvwejiab.supabase.co` |
-| `SUPABASE_ANON_KEY` | publishable key (`sb_publishable_...`) |
-| `SUPABASE_JWT_SECRET` | Supabase → Settings → API → **JWT Secret** |
+| `SUPABASE_JWT_SECRET` | Supabase → Settings → API → JWT Secret |
 
-`SUPABASE_SERVICE_ROLE_KEY` trengs **ikke** lenger til innlogging.
+URL + publishable key er i `public-config.js` (allerede satt).
 
-## Brukerflyt
+## Første gangs oppsett Supabase
 
-1. Logg inn med `Edvard01` + passord
-2. Se innkommende faks til STN 01
-3. Send fax til andre stasjoner
+1. Kjør `supabase/schema.sql` i SQL Editor
+2. `select create_faxchat_user('Edvard01', 'dittpassord');`
+3. Sett `SUPABASE_JWT_SECRET` i Vercel → Redeploy
+4. Logg inn med **Edvard01** (ikke e-post)

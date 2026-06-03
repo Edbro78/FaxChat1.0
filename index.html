@@ -32,9 +32,9 @@
                 <p class="text-[10px] font-mono opacity-90">Kun <strong>brukernavn + passord</strong> — ingen e-post.<br>Format: <strong>Edvard01</strong> (01 = faksnummer).</p>
                 <div>
                     <label for="loginUsername" class="text-[10px] font-bold font-mono uppercase block mb-1">Brukernavn (Kortnavn + nr)</label>
-                    <input id="loginUsername" type="text" required autocomplete="username" placeholder="Edvard01"
+                    <input id="loginUsername" type="text" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Edvard01"
                            pattern="[A-Za-z][A-Za-z0-9]*\d{2}"
-                           title="Kortnavn etterfulgt av 2 siffer, f.eks. Edvard01"
+                           title="Kortnavn + 2 siffer — IKKE e-post. Eksempel: Edvard01"
                            class="w-full bg-[#1a1510] border-2 border-[#5a5142] text-amber-400 font-mono px-3 py-2 text-sm focus:outline-none focus:border-amber-600" />
                 </div>
                 <div>
@@ -262,6 +262,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="public-config.js"></script>
     <script src="auth.js"></script>
     <script src="app.js"></script>
 </body>

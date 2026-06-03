@@ -1,6 +1,7 @@
 const { parseFaxUsername } = require('../../lib/fax-utils');
 const { verifyLogin, readJsonBody } = require('../../lib/supabase-server');
 const { signSupabaseJwt } = require('../../lib/jwt');
+const defaults = require('../../lib/supabase-defaults');
 
 module.exports = async (req, res) => {
     if (req.method !== 'POST') {
@@ -29,7 +30,9 @@ module.exports = async (req, res) => {
 
         const jwtSecret = process.env.SUPABASE_JWT_SECRET;
         if (!jwtSecret) {
-            res.status(500).json({ error: 'SUPABASE_JWT_SECRET mangler i Vercel' });
+            res.status(500).json({
+                error: 'SUPABASE_JWT_SECRET mangler i Vercel (Supabase → Settings → API → JWT Secret)'
+            });
             return;
         }
 
