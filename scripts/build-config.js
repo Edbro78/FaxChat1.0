@@ -5,7 +5,15 @@ const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!url || !anonKey) {
-  console.error('Mangler SUPABASE_URL og SUPABASE_ANON_KEY (Vercel Environment Variables).');
+  console.error('');
+  console.error('BUILD FEILET: Supabase-miljøvariabler mangler.');
+  console.error('');
+  console.error('I Vercel: Project → Settings → Environment Variables');
+  console.error('  SUPABASE_URL      = https://xxxx.supabase.co  (Supabase → Settings → API → Project URL)');
+  console.error('  SUPABASE_ANON_KEY = eyJ...                     (Supabase → Settings → API → anon public)');
+  console.error('');
+  console.error('Huk av Production (og Preview), lagre, deretter Redeploy.');
+  console.error('');
   process.exit(1);
 }
 

@@ -50,12 +50,20 @@ values (
 
 ## Vercel-deploy
 
-1. Koble repo til Vercel.
-2. Legg inn miljøvariabler:
-   - `SUPABASE_URL`
-   - `SUPABASE_ANON_KEY`
-3. Build-kommando (fra `vercel.json`): `node scripts/build-config.js` → lager `config.js`.
-4. Deploy.
+1. Koble [FaxChat1.0](https://github.com/Edbro78/FaxChat1.0) til Vercel.
+2. **Miljøvariabler (påkrevd — ellers feiler build):**
+   - Gå til **Project → Settings → Environment Variables**
+   - Legg til begge (fra Supabase **Settings → API**):
+
+   | Navn | Verdi |
+   |------|--------|
+   | `SUPABASE_URL` | Project URL, f.eks. `https://abcdefgh.supabase.co` |
+   | `SUPABASE_ANON_KEY` | `anon` `public` nøkkelen (lang JWT-streng) |
+
+   - Huk av **Production** (og gjerne Preview / Development)
+   - Klikk **Save**
+3. **Redeploy** etter at variablene er lagret (Deployments → … → Redeploy).
+4. Build kjører `node scripts/build-config.js` og lager `config.js` automatisk.
 
 ## Lokal utvikling
 
