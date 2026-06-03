@@ -25,11 +25,15 @@ Brukeren logger inn på FaxChat med **Edvard01** + passord.
 
 ## Vercel (Environment Variables)
 
-| Variabel | Formål |
+Prosjekt-URL: `https://mswgcwwpvkxvkvwejiab.supabase.co`
+
+| Variabel | Verdi |
 |----------|--------|
-| `SUPABASE_URL` | API URL |
-| `SUPABASE_ANON_KEY` | anon public |
-| `SUPABASE_SERVICE_ROLE_KEY` | innlogging via brukernavn |
+| `SUPABASE_URL` | `https://mswgcwwpvkxvkvwejiab.supabase.co` |
+| `SUPABASE_ANON_KEY` | Supabase → Settings → API → anon public |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → service_role |
+
+Se også `env.example`.
 
 ## Deploy
 
