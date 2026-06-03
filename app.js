@@ -345,6 +345,47 @@ async function loadDirectory() {
     directoryProfiles = (data || []).sort((a, b) => Number(a.station_id) - Number(b.station_id));
 }
 
+function updateSendButtonState() {
+    const btn = document.getElementById('startTransmissionBtn');
+    const hint = document.getElementById('sendReadyHint');
+    if (!btn || !hint) return;
+
+    const text = (document.getElementById('faxContentInput')?.value || '').trim();
+    const match = resolveDialMatch(dialedBuffer);
+    const connected = match.status === 'connected' && match.profile && match.profile.id !== currentProfile?.id;
+
+    if (connected) {
+        activeRecipientStation = match.profile.station_id;
+    } else {
+        activeRecipientStation = null;
+    }
+
+    if (paperCapacity <= 0) {
+        hint.innerText = 'Tomt for papir — klikk «LEGG INN MER PAPIR» først.';
+        btn.disabled = true;
+        btn.classList.add('opacity-40');
+        return;
+    }
+
+    if (!connected) {
+        hint.innerText = 'Velg mottaker: bla i katalogen og klikk et navn, eller tast faxnummer på tastaturet.';
+        btn.disabled = true;
+        btn.classList.add('opacity-40');
+        return;
+    }
+
+    if (!text) {
+        hint.innerText = `Koblet til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id}) — skriv meldingen først.`;
+        btn.disabled = true;
+        btn.classList.add('opacity-40');
+        return;
+    }
+
+    hint.innerText = `Klar til sending til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id}).`;
+    btn.disabled = false;
+    btn.classList.remove('opacity-40');
+}
+
 function resolveDialMatch(buffer) {
     if (!buffer) return { profile: null, status: 'idle' };
     const exact = directoryProfiles.find(p => p.station_id === buffer);
@@ -470,7 +511,7 @@ function renderKartotek() {
                 dialedBuffer = profile.station_id;
                 playRetroSound('key');
                 updateUIVariables();
-                if (currentMode === 'send') setMode('send');
+                setMode('send');
             }
         };
 
@@ -526,6 +567,8 @@ function updateUIVariables() {
             document.getElementById("stationMatchInfo").innerText = dialedBuffer.length > 0 ? "RINGER..." : "INGEN NUMMER VALGT";
         }
     }
+
+    updateSendButtonState();
 }
 
 function pressDialKey(num) {
@@ -603,6 +646,7 @@ function setMode(mode) {
         dialerPanel.classList.remove('hidden');
         workspacePanel.classList.add('lg:col-span-8');
         workspacePanel.classList.remove('lg:col-span-12');
+        updateUIVariables();
     }
 }
 
@@ -736,8 +780,15 @@ async function sendTopToBack() {
 }
 
 async function startTransmission() {
+    updateSendButtonState();
+
+    const match = resolveDialMatch(dialedBuffer);
+    if (match.status === 'connected' && match.profile && match.profile.id !== currentProfile.id) {
+        activeRecipientStation = match.profile.station_id;
+    }
+
     if (!activeRecipientStation) {
-        showMsgBox("LINE DISCONNECTED", "FEIL: KOPLING AVBRUTT. DU MÅ SLÅ INN ET GYLDIG TO-SIFRET NUMMER PÅ TASTATURET FØRST.");
+        showMsgBox("INGEN MOTTAKER", "Velg mottaker først: klikk et navn i telefonkatalogen, eller tast faxnummer på tastaturet til venstre.");
         return;
     }
 
