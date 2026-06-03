@@ -25,9 +25,13 @@ async function loadProfile() {
     const sb = getSupabase();
     const { data: { user } } = await sb.auth.getUser();
     if (!user) return null;
-    const { data, error } = await sb.from('profiles').select('id, name, station_id, fax_label, description').eq('id', user.id).single();
-    if (error || !data) return null;
-    return data;
+
+    const { data } = await sb.from('profiles').select('id, name, station_id, fax_label, description').eq('id', user.id).maybeSingle();
+    if (data) return data;
+
+    const { data: ensured, error } = await sb.rpc('ensure_profile');
+    if (error || !ensured) return null;
+    return ensured;
 }
 
 async function handleLoginSubmit(event) {
@@ -45,7 +49,7 @@ async function handleLoginSubmit(event) {
         currentProfile = await loadProfile();
         if (!currentProfile) {
             await getSupabase().auth.signOut();
-            throw new Error('Profil mangler. Legg User Metadata ved opprettelse i Authentication.');
+            throw new Error('Innlogging OK, men profil finnes ikke. Kjør schema.sql i Supabase SQL Editor (nederst er engangs-fix).');
         }
         await initFaxApp();
         showApp();
