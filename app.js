@@ -1,3 +1,89 @@
+const SUPABASE_URL = 'https://mswgcwwpvkxvkvwejiab.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_FT8dFRVYyO-7dXlGnydQUA_UQsL9A3w';
+
+let supabaseClient = null;
+let currentProfile = null;
+
+function getSupabase() {
+    if (!supabaseClient) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+    return supabaseClient;
+}
+
+function showLogin() {
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('appScreen').classList.add('hidden');
+}
+
+function showApp() {
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('appScreen').classList.remove('hidden');
+}
+
+async function loadProfile() {
+    const sb = getSupabase();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return null;
+    const { data, error } = await sb.from('profiles').select('id, name, station_id, fax_label, description').eq('id', user.id).single();
+    if (error || !data) return null;
+    return data;
+}
+
+async function handleLoginSubmit(event) {
+    event.preventDefault();
+    const errEl = document.getElementById('loginError');
+    const btn = document.getElementById('loginSubmitBtn');
+    errEl.classList.add('hidden');
+    btn.disabled = true;
+    btn.innerText = 'KOBLER TIL...';
+    try {
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        const { error } = await getSupabase().auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        currentProfile = await loadProfile();
+        if (!currentProfile) {
+            await getSupabase().auth.signOut();
+            throw new Error('Profil mangler. Legg User Metadata ved opprettelse i Authentication.');
+        }
+        await initFaxApp();
+        showApp();
+    } catch (e) {
+        errEl.innerText = e.message || 'Innlogging feilet.';
+        errEl.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'AKTIVER LINJE';
+    }
+}
+
+async function logout() {
+    await getSupabase().auth.signOut();
+    currentProfile = null;
+    showLogin();
+    document.getElementById('loginPassword').value = '';
+}
+
+async function bootstrapAuth() {
+    const { data: { session } } = await getSupabase().auth.getSession();
+    if (session) {
+        currentProfile = await loadProfile();
+        if (currentProfile) {
+            await initFaxApp();
+            showApp();
+            return;
+        }
+        await getSupabase().auth.signOut();
+    }
+    showLogin();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('loginForm').addEventListener('submit', handleLoginSubmit);
+    bootstrapAuth();
+});
+
 // --- SOUND SYNTHESIS ENGINE (Synthesized via Web Audio API) ---
 let audioCtx = null;
 

@@ -1,2 +1,0 @@
--- Deprecated: se supabase/opprett-bruker.sql
--- Admin99 / admin99@faxchat.no / passord 123
