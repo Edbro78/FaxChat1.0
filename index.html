@@ -29,10 +29,12 @@
             </div>
 
             <form id="loginForm" class="lcd-display scanlines p-5 rounded-sm flex flex-col gap-4">
-                <p class="text-[10px] font-mono opacity-90">Opprett konto kun av administrator. Ingen registrering eller passordendring her.</p>
+                <p class="text-[10px] font-mono opacity-90">Logg inn med kortnavn + nummer, f.eks. <strong>Edvard01</strong> (01 er faksnummeret). Konto opprettes kun av administrator.</p>
                 <div>
-                    <label for="loginUsername" class="text-[10px] font-bold font-mono uppercase block mb-1">Brukernavn</label>
-                    <input id="loginUsername" type="text" required autocomplete="username" placeholder="admin"
+                    <label for="loginUsername" class="text-[10px] font-bold font-mono uppercase block mb-1">Brukernavn (Kortnavn + nr)</label>
+                    <input id="loginUsername" type="text" required autocomplete="username" placeholder="Edvard01"
+                           pattern="[A-Za-z][A-Za-z0-9]*\d{2}"
+                           title="Kortnavn etterfulgt av 2 siffer, f.eks. Edvard01"
                            class="w-full bg-[#1a1510] border-2 border-[#5a5142] text-amber-400 font-mono px-3 py-2 text-sm focus:outline-none focus:border-amber-600" />
                 </div>
                 <div>

@@ -3,11 +3,27 @@ let currentProfile = null;
 let configLoaded = false;
 
 const AUTH_EMAIL_DOMAIN = 'faxchat.no';
+const FAX_USERNAME_PATTERN = /^[A-Za-z][A-Za-z0-9]*\d{2}$/;
 
-function usernameToEmail(username) {
-    const value = username.trim().toLowerCase();
-    if (value.includes('@')) return value;
-    return `${value}@${AUTH_EMAIL_DOMAIN}`;
+/**
+ * Edvard01 → { name: 'Edvard', stationId: '01', faxLabel: 'Edvard01', authEmail: 'edvard01@faxchat.no' }
+ */
+function parseFaxUsername(input) {
+    const raw = input.trim();
+    if (!FAX_USERNAME_PATTERN.test(raw)) return null;
+
+    const match = raw.match(/^([A-Za-z][A-Za-z0-9]*)(\d{2})$/);
+    const nameRaw = match[1];
+    const stationId = match[2];
+    const name = nameRaw.charAt(0).toUpperCase() + nameRaw.slice(1).toLowerCase();
+    const faxLabel = name + stationId;
+
+    return {
+        name,
+        stationId,
+        faxLabel,
+        authEmail: `${faxLabel.toLowerCase()}@${AUTH_EMAIL_DOMAIN}`
+    };
 }
 
 function loadScriptConfig() {
@@ -107,10 +123,15 @@ async function handleLoginSubmit(event) {
             throw new Error('Supabase er ikke konfigurert. Legg SUPABASE_URL og SUPABASE_ANON_KEY i Vercel → Environment Variables, deretter Redeploy.');
         }
 
-        const email = usernameToEmail(document.getElementById('loginUsername').value);
+        const username = document.getElementById('loginUsername').value.trim();
+        const parsed = parseFaxUsername(username);
+        if (!parsed) {
+            throw new Error('Brukernavn må være Kortnavn + 2 siffer, f.eks. Edvard01 (01 = faksnummer).');
+        }
+
         const password = document.getElementById('loginPassword').value;
         const sb = getSupabase();
-        const { error } = await sb.auth.signInWithPassword({ email, password });
+        const { error } = await sb.auth.signInWithPassword({ email: parsed.authEmail, password });
         if (error) throw error;
 
         currentProfile = await loadCurrentProfile();

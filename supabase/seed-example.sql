@@ -1,7 +1,7 @@
--- Eksempel: etter at auth-brukere er opprettet i Dashboard
--- Erstatt UUID-er med faktiske bruker-ID-er
+-- Eksempelprofiler (etter auth-brukere er opprettet)
+-- Se opprett-bruker.sql for full fremgangsmåte
 
 -- insert into public.profiles (id, name, station_id, fax_label, description) values
--- ('uuid-john', 'John', '11', 'John11', 'Terminal Alpha'),
--- ('uuid-sarah', 'Sarah', '22', 'Sarah22', 'Bunker HQ'),
--- ('uuid-bernt', 'Bernt', '33', 'Bernt33', 'Main Storage');
+-- ('uuid-edvard', 'Edvard', '01', 'Edvard01', ''),
+-- ('uuid-bernt',  'Bernt',  '33', 'Bernt33',  'Lager'),
+-- ('uuid-sarah',  'Sarah',  '22', 'Sarah22',  'HQ');

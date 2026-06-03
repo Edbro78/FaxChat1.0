@@ -74,6 +74,7 @@ create policy "faxes_update_incoming"
     )
   );
 
--- Eksempel: opprett bruker i Dashboard → Authentication → Users, deretter:
+-- Eksempel profil (etter auth-bruker opprettet — se opprett-bruker.sql):
+-- Edvard01 → name Edvard, station_id 01, fax_label Edvard01
 -- insert into public.profiles (id, name, station_id, fax_label, description)
--- values ('<auth-user-uuid>', 'Bernt', '33', 'Bernt33', 'Main Storage');
+-- values ('<uuid>', 'Edvard', '01', 'Edvard01', '');
