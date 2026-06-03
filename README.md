@@ -60,8 +60,9 @@ values (
 
    Huk av **Production**, Save, deretter **Redeploy**.
 
-3. Appen henter nøkler via `/api/config` ved runtime. **Ikke** sett custom Build Command i Vercel til `build-config.js`.
-4. Hvis Vercel fortsatt kjører gammel build: **Settings → General → Build Command** → la stå **tom** → Redeploy.
+3. Appen henter nøkler via `/api/config` ved runtime.
+4. **Build Command** i Vercel skal være `npm run build` (eller tom — da brukes `package.json`). **Ikke** `node scripts/build-config.js`.
+5. Ved gammel feilmelding i logg: sjekk at siste GitHub-commit er deployet, deretter **Redeploy**.
 4. Test: åpne `https://ditt-domene.vercel.app/api/config` — skal vise JSON med `url` (ikke feilmelding).
 
 ## Lokal utvikling

@@ -4,6 +4,7 @@
   "description": "FaxChat v1.2 - Retro fax workstation (Vercel + Supabase)",
   "private": true,
   "scripts": {
+    "build": "echo FaxChat deploy OK - Supabase config loads at runtime via /api/config",
     "start": "npx --yes serve . -l 3000",
     "dev": "npm run start"
   }
