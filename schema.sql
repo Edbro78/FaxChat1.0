@@ -1,12 +1,13 @@
 -- FaxChat database — kjør i Supabase SQL Editor
--- Brukere opprettes i Authentication → Users (e-post + passord)
--- Legg User Metadata: {"name":"Edvard","station_id":"01","fax_label":"Edvard01"}
+-- Brukere opprettes kun i Authentication → Users (e-post + passord)
+-- Navn = det før @ (per@test.no → "per")
+-- Faxnummer = rekkefølge (1., 2., 3. bruker → 1, 2, 3 … opp til 99)
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   name text not null,
   station_id text not null unique,
-  fax_label text not null unique,
+  fax_label text not null,
   description text not null default '',
   created_at timestamptz not null default now()
 );
@@ -44,16 +45,32 @@ drop policy if exists "faxes_update" on public.faxes;
 create policy "faxes_update" on public.faxes for update to authenticated
   using (recipient_station_id = (select station_id from public.profiles where id = auth.uid()));
 
+create or replace function public.email_local_name(email text)
+returns text language sql immutable as $$
+  select lower(split_part(email, '@', 1));
+$$;
+
+create or replace function public.next_fax_number()
+returns text language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  select coalesce(max(station_id::int), 0) + 1 into n
+  from public.profiles
+  where station_id ~ '^\d+$';
+  if n > 99 then
+    raise exception 'Maks 99 brukere';
+  end if;
+  return n::text;
+end;
+$$;
+
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  local_name text := public.email_local_name(new.email);
 begin
   insert into public.profiles (id, name, station_id, fax_label)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data->>'station_id', '99'),
-    coalesce(new.raw_user_meta_data->>'fax_label', split_part(new.email, '@', 1) || '99')
-  );
+  values (new.id, local_name, public.next_fax_number(), local_name);
   return new;
 end;
 $$;
@@ -62,13 +79,13 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users for each row execute function public.handle_new_user();
 
--- Oppretter profil ved innlogging hvis bruker ble laget før triggeren
 create or replace function public.ensure_profile()
 returns public.profiles
 language plpgsql security definer set search_path = public as $$
 declare
   u auth.users%rowtype;
   p public.profiles%rowtype;
+  local_name text;
 begin
   select * into u from auth.users where id = auth.uid();
   if not found then raise exception 'Not authenticated'; end if;
@@ -76,13 +93,9 @@ begin
   select * into p from public.profiles where id = u.id;
   if found then return p; end if;
 
+  local_name := public.email_local_name(u.email);
   insert into public.profiles (id, name, station_id, fax_label)
-  values (
-    u.id,
-    coalesce(u.raw_user_meta_data->>'name', split_part(u.email, '@', 1)),
-    coalesce(u.raw_user_meta_data->>'station_id', '99'),
-    coalesce(u.raw_user_meta_data->>'fax_label', split_part(u.email, '@', 1))
-  )
+  values (u.id, local_name, public.next_fax_number(), local_name)
   returning * into p;
 
   return p;
@@ -91,13 +104,30 @@ $$;
 
 grant execute on function public.ensure_profile() to authenticated;
 
--- Engangs-fix: profiler for brukere som allerede finnes i Authentication
+-- Profiler for brukere som finnes i Authentication uten profil-rad
+with missing as (
+  select u.id, u.email, row_number() over (order by u.created_at) as seq
+  from auth.users u
+  where not exists (select 1 from public.profiles p where p.id = u.id)
+),
+base as (
+  select coalesce(max(station_id::int), 0) as mx
+  from public.profiles
+  where station_id ~ '^\d+$'
+)
 insert into public.profiles (id, name, station_id, fax_label)
 select
-  u.id,
-  coalesce(u.raw_user_meta_data->>'name', split_part(u.email, '@', 1)),
-  coalesce(u.raw_user_meta_data->>'station_id', lpad(row_number() over (order by u.created_at)::text, 2, '0')),
-  coalesce(u.raw_user_meta_data->>'fax_label', split_part(u.email, '@', 1))
-from auth.users u
-where not exists (select 1 from public.profiles p where p.id = u.id)
+  m.id,
+  public.email_local_name(m.email),
+  (base.mx + m.seq)::text,
+  public.email_local_name(m.email)
+from missing m
+cross join base
 on conflict do nothing;
+
+-- Synk navn fra e-post på eksisterende profiler
+update public.profiles p
+set name = public.email_local_name(u.email),
+    fax_label = public.email_local_name(u.email)
+from auth.users u
+where u.id = p.id;

@@ -317,9 +317,9 @@ async function initFaxApp() {
     const p = currentProfile;
     if (!p) return;
 
-    document.getElementById('sessionUserLabel').innerText = `${p.fax_label} (${p.name})`;
-    document.getElementById('sessionStationLabel').innerText = `STN ${p.station_id}`;
-    document.getElementById('inboxTrayLabel').innerText = `INNKOMMENDE → STN ${p.station_id}`;
+    document.getElementById('sessionUserLabel').innerText = `${p.name} · NR ${p.station_id}`;
+    document.getElementById('sessionStationLabel').innerText = `NR ${p.station_id}`;
+    document.getElementById('inboxTrayLabel').innerText = `INNKOMMENDE → NR ${p.station_id}`;
 
     dialedBuffer = "";
     activeRecipientStation = null;
@@ -342,7 +342,19 @@ async function loadDirectory() {
         directoryProfiles = [];
         return;
     }
-    directoryProfiles = data || [];
+    directoryProfiles = (data || []).sort((a, b) => Number(a.station_id) - Number(b.station_id));
+}
+
+function resolveDialMatch(buffer) {
+    if (!buffer) return { profile: null, status: 'idle' };
+    const exact = directoryProfiles.find(p => p.station_id === buffer);
+    if (exact) return { profile: exact, status: 'connected' };
+    if (buffer.length >= 2) return { profile: null, status: 'not_found' };
+    const hasLonger = directoryProfiles.some(
+        p => p.station_id.startsWith(buffer) && p.station_id.length > buffer.length
+    );
+    if (hasLonger) return { profile: null, status: 'dialing' };
+    return { profile: null, status: 'not_found' };
 }
 
 async function refreshIncomingFaxes() {
@@ -447,7 +459,7 @@ function renderKartotek() {
                 </div>
                 <div class="text-right">
                     <span class="bg-stone-900 text-yellow-500 font-extrabold px-2 py-1 rounded text-xs">
-                        STN ${profile.station_id}
+                        NR ${profile.station_id}
                     </span>
                 </div>
             </div>
@@ -482,13 +494,13 @@ function nextKartotekCard() {
 
 function updateUIVariables() {
     const me = currentProfile;
-    document.getElementById("currentSenderLabel").innerText = `${me.fax_label} [STN ${me.station_id}]`;
-    document.getElementById("telefaxSenderId").innerText = `STN ${me.station_id} (${me.name})`;
+    document.getElementById("currentSenderLabel").innerText = `${me.name} · NR ${me.station_id}`;
+    document.getElementById("telefaxSenderId").innerText = `NR ${me.station_id} (${me.name})`;
 
-    const cleanDisplay = dialedBuffer.padEnd(2, '_');
-    document.getElementById("dialNumberDisplay").innerText = `[ ${cleanDisplay[0]} ][ ${cleanDisplay[1]} ]`;
+    const padded = dialedBuffer.padEnd(2, '_');
+    document.getElementById("dialNumberDisplay").innerText = `[ ${padded[0]} ][ ${padded[1]} ]`;
 
-    const matchedProfile = directoryProfiles.find(p => p.station_id === dialedBuffer);
+    const { profile: matchedProfile, status } = resolveDialMatch(dialedBuffer);
 
     if (matchedProfile) {
         if (matchedProfile.id === me.id) {
@@ -498,7 +510,7 @@ function updateUIVariables() {
             activeRecipientStation = null;
         } else {
             document.getElementById("stationMatchInfo").innerHTML = `<span class="text-green-400">CONNECT: ${matchedProfile.name.toUpperCase()}</span>`;
-            document.getElementById("telefaxDestId").innerText = `STN ${matchedProfile.station_id} (${matchedProfile.fax_label})`;
+            document.getElementById("telefaxDestId").innerText = `NR ${matchedProfile.station_id} (${matchedProfile.name})`;
             document.getElementById("dialerBlinker").innerText = "CONNECTED";
             activeRecipientStation = matchedProfile.station_id;
         }
@@ -506,10 +518,12 @@ function updateUIVariables() {
         activeRecipientStation = null;
         document.getElementById("telefaxDestId").innerText = "NOT CONNECTED";
         document.getElementById("dialerBlinker").innerText = "IDLE";
-        if (dialedBuffer.length === 2) {
-            document.getElementById("stationMatchInfo").innerHTML = `<span class="text-amber-500">STN NOT FOUND</span>`;
+        if (status === 'not_found' && dialedBuffer.length > 0) {
+            document.getElementById("stationMatchInfo").innerHTML = `<span class="text-amber-500">NR IKKE FUNNET</span>`;
+        } else if (status === 'dialing') {
+            document.getElementById("stationMatchInfo").innerText = "RINGER...";
         } else {
-            document.getElementById("stationMatchInfo").innerText = dialedBuffer.length > 0 ? "DIALING..." : "NO STATION DIALED";
+            document.getElementById("stationMatchInfo").innerText = dialedBuffer.length > 0 ? "RINGER..." : "INGEN NUMMER VALGT";
         }
     }
 }
@@ -618,7 +632,7 @@ function renderFaxes() {
         listEl.innerHTML = `
             <div class="text-center py-20 text-stone-500 font-mono text-xs flex flex-col items-center justify-center gap-2 h-full">
                 <i class="fa-solid fa-inbox text-4xl opacity-30"></i>
-                <span>[ INGEN FAX MOTTATT PÅ STN ${currentProfile.station_id} ]</span>
+                <span>[ INGEN FAX MOTTATT PÅ NR ${currentProfile.station_id} ]</span>
             </div>
         `;
         return;
@@ -654,7 +668,7 @@ function renderFaxes() {
         const pilePos = idx + 1;
         paper.innerHTML = `
             <div class="border-b border-dashed border-stone-300 pb-2 mb-3 text-[10px] text-stone-500 flex justify-between">
-                <span>STN_${senderProfile?.station_id || '??'} // ${escapeHtml(senderLabel)}</span>
+                <span>NR_${senderProfile?.station_id || '??'} // ${escapeHtml(senderLabel)}</span>
                 <span>DATE: ${formatFaxDate(msg.created_at)}</span>
             </div>
             <div class="text-xs uppercase leading-relaxed text-left flex-grow break-words tracking-wide" style="font-family: 'Courier Prime', monospace;">
