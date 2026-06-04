@@ -1,0 +1,18 @@
+{
+  "name": "FaxChat",
+  "short_name": "FaxChat",
+  "description": "Retro analog fax-terminal",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#2b3a4a",
+  "theme_color": "#2b3a4a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "assets/fax-machine.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
