@@ -51,6 +51,7 @@ async function handleLoginSubmit(event) {
             await getSupabase().auth.signOut();
             throw new Error('Innlogging OK, men profil finnes ikke. Kjør schema.sql i Supabase SQL Editor (nederst er engangs-fix).');
         }
+        initAudio();
         await initFaxApp();
         showApp();
     } catch (e) {
@@ -74,6 +75,7 @@ async function bootstrapAuth() {
     if (session) {
         currentProfile = await loadProfile();
         if (currentProfile) {
+            initAudio();
             await initFaxApp();
             showApp();
             return;
@@ -297,6 +299,356 @@ function beep(freq, duration, startTime) {
     osc.stop(startTime + duration);
 }
 
+const FAX_CYCLE_MS = 8000;
+const FAX_SEND_PAUSE_MS = 2600;
+const FAX_SEND_FEED_MS = 5400;
+let isFaxMachineBusy = false;
+let faxSoundCleanup = [];
+
+function clearFaxSoundCleanup() {
+    faxSoundCleanup.forEach((fn) => {
+        try { fn(); } catch (_) { /* ignore */ }
+    });
+    faxSoundCleanup = [];
+}
+
+/** Klassisk 8-sekunders faxlyd: handshake + modem + mekanisk surr */
+function playFaxMachineCycle(durationMs = FAX_CYCLE_MS) {
+    initAudio();
+    if (!audioCtx) return;
+    clearFaxSoundCleanup();
+
+    const now = audioCtx.currentTime;
+    const durationSec = durationMs / 1000;
+
+    beep(1100, 0.35, now);
+    beep(1100, 0.35, now + 0.55);
+    beep(2100, 0.7, now + 1.15);
+
+    const motorStart = now + 0.15;
+    const motorOsc = audioCtx.createOscillator();
+    const motorGain = audioCtx.createGain();
+    motorOsc.type = 'sawtooth';
+    motorOsc.frequency.setValueAtTime(48, motorStart);
+    motorOsc.frequency.linearRampToValueAtTime(88, motorStart + 1.0);
+    motorGain.gain.setValueAtTime(0.05, motorStart);
+    motorGain.gain.exponentialRampToValueAtTime(0.006, motorStart + 1.05);
+    motorOsc.connect(motorGain);
+    motorGain.connect(audioCtx.destination);
+    motorOsc.start(motorStart);
+    motorOsc.stop(motorStart + 1.1);
+
+    const dataStart = now + 2.0;
+    const dataDuration = Math.max(0.5, durationSec - 2.0);
+    const bufferSize = Math.floor(audioCtx.sampleRate * dataDuration);
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const bufData = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        bufData[i] = Math.random() * 2 - 1;
+    }
+
+    const noiseSource = audioCtx.createBufferSource();
+    noiseSource.buffer = buffer;
+    const bandpass = audioCtx.createBiquadFilter();
+    bandpass.type = 'bandpass';
+    bandpass.frequency.value = 1680;
+    bandpass.Q.value = 1.3;
+
+    const hissGain = audioCtx.createGain();
+    hissGain.gain.setValueAtTime(0, dataStart);
+    hissGain.gain.linearRampToValueAtTime(0.075, dataStart + 0.12);
+    hissGain.gain.exponentialRampToValueAtTime(0.001, dataStart + dataDuration);
+
+    const carrier1 = audioCtx.createOscillator();
+    carrier1.type = 'sawtooth';
+    carrier1.frequency.setValueAtTime(1400, dataStart);
+    carrier1.frequency.linearRampToValueAtTime(1750, dataStart + dataDuration * 0.55);
+    carrier1.frequency.linearRampToValueAtTime(1250, dataStart + dataDuration);
+
+    const carrier2 = audioCtx.createOscillator();
+    carrier2.type = 'square';
+    carrier2.frequency.setValueAtTime(2380, dataStart);
+    carrier2.frequency.linearRampToValueAtTime(1150, dataStart + dataDuration);
+
+    const fmOsc = audioCtx.createOscillator();
+    const fmGain = audioCtx.createGain();
+    fmOsc.frequency.setValueAtTime(48, dataStart);
+    fmGain.gain.setValueAtTime(290, dataStart);
+
+    const toneGain = audioCtx.createGain();
+    toneGain.gain.setValueAtTime(0, dataStart);
+    toneGain.gain.linearRampToValueAtTime(0.048, dataStart + 0.18);
+    toneGain.gain.exponentialRampToValueAtTime(0.001, dataStart + dataDuration);
+
+    fmOsc.connect(fmGain);
+    fmGain.connect(carrier1.frequency);
+    fmGain.connect(carrier2.frequency);
+    noiseSource.connect(bandpass);
+    bandpass.connect(hissGain);
+    hissGain.connect(audioCtx.destination);
+    carrier1.connect(toneGain);
+    carrier2.connect(toneGain);
+    toneGain.connect(audioCtx.destination);
+
+    fmOsc.start(dataStart);
+    carrier1.start(dataStart);
+    carrier2.start(dataStart);
+    noiseSource.start(dataStart);
+    fmOsc.stop(dataStart + dataDuration);
+    carrier1.stop(dataStart + dataDuration);
+    carrier2.stop(dataStart + dataDuration);
+    noiseSource.stop(dataStart + dataDuration);
+
+    const rollerTimer = setInterval(() => playRetroSound('reelslide'), 1100);
+    faxSoundCleanup.push(() => clearInterval(rollerTimer));
+    setTimeout(() => clearInterval(rollerTimer), durationMs);
+}
+
+function seenFaxStorageKey() {
+    return `faxchat_seen_${currentProfile?.station_id || 'unknown'}`;
+}
+
+function loadSeenFaxIds() {
+    try {
+        const raw = sessionStorage.getItem(seenFaxStorageKey());
+        return new Set(raw ? JSON.parse(raw) : []);
+    } catch (_) {
+        return new Set();
+    }
+}
+
+function markFaxSeen(id) {
+    const seen = loadSeenFaxIds();
+    seen.add(id);
+    try {
+        sessionStorage.setItem(seenFaxStorageKey(), JSON.stringify([...seen]));
+    } catch (_) { /* ignore quota */ }
+}
+
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function animateThermalReveal(el, durationMs) {
+    return new Promise((resolve) => {
+        const start = performance.now();
+        function tick(now) {
+            const t = Math.min(1, (now - start) / durationMs);
+            el.style.setProperty('--fax-reveal', `${(t * 100).toFixed(2)}%`);
+            if (t < 1) {
+                requestAnimationFrame(tick);
+            } else {
+                resolve();
+            }
+        }
+        el.style.setProperty('--fax-reveal', '0%');
+        requestAnimationFrame(tick);
+    });
+}
+
+function setFaxMachineTransmitting(active) {
+    const scene = document.getElementById('jitflSendScene');
+    if (scene) scene.classList.toggle('jitfl-scene--transmitting', active);
+    const ledPower = document.getElementById('jitflLedPower');
+    const ledTx = document.getElementById('jitflLedTx');
+    if (ledPower) ledPower.classList.toggle('lit', active);
+    if (ledTx) ledTx.classList.toggle('lit', active);
+}
+
+function resetJitflSendDom() {
+    const sendSheet = document.getElementById('faxSendSheet');
+    const msgBody = document.getElementById('faxSendMessageBody');
+    const intakeGlow = document.getElementById('jitflIntakeGlow');
+    const rollers = document.getElementById('jitflRollers');
+    const lcd = document.getElementById('jitflLcdText');
+
+    sendSheet?.classList.remove('phase-feed');
+    sendSheet?.classList.add('phase-pause');
+    if (msgBody) msgBody.textContent = '';
+    intakeGlow?.classList.remove('active');
+    rollers?.classList.remove('active');
+    if (lcd) lcd.textContent = 'STANDBY';
+    setFaxMachineTransmitting(false);
+}
+
+function resetFaxMachineDom() {
+    const overlay = document.getElementById('faxMachineOverlay');
+    const paper = document.getElementById('faxEmergingPaper');
+    const scanLine = document.getElementById('faxScanLine');
+
+    overlay.classList.remove('mode-send', 'mode-receive');
+    document.getElementById('faxMachineReceiveLayout').classList.remove('hidden');
+    document.getElementById('faxMachineSendLayout').classList.add('hidden');
+
+    paper.classList.remove('printing');
+    paper.classList.add('hidden');
+    scanLine.classList.remove('scanning', 'hidden');
+    document.getElementById('faxEmergingTray').classList.remove('hidden');
+    resetJitflSendDom();
+}
+
+function showFaxMachineOverlay(mode, statusText, hintText) {
+    resetFaxMachineDom();
+    const overlay = document.getElementById('faxMachineOverlay');
+    overlay.classList.remove('hidden');
+    overlay.classList.add(mode === 'send' ? 'mode-send' : 'mode-receive');
+    document.getElementById('faxMachineLed').classList.add('active');
+    document.getElementById('faxMachineStatus').innerText = statusText;
+    document.getElementById('faxMachineHint').innerText = hintText;
+    document.getElementById('faxMachineModeLabel').innerText = mode === 'send' ? 'SENDER FAX' : 'MOTTAR FAX';
+
+    if (mode === 'send') {
+        document.getElementById('faxMachineReceiveLayout').classList.add('hidden');
+        document.getElementById('faxMachineSendLayout').classList.remove('hidden');
+        const lcd = document.getElementById('jitflLcdText');
+        if (lcd) lcd.textContent = 'KLAR';
+    } else {
+        document.getElementById('faxMachineReceiveLayout').classList.remove('hidden');
+        document.getElementById('faxMachineSendLayout').classList.add('hidden');
+        const scanLine = document.getElementById('faxScanLine');
+        scanLine.classList.remove('hidden');
+        void scanLine.offsetWidth;
+        scanLine.classList.add('scanning');
+    }
+}
+
+function hideFaxMachineOverlay() {
+    document.getElementById('faxMachineOverlay').classList.add('hidden');
+    document.getElementById('faxMachineLed').classList.remove('active');
+    resetFaxMachineDom();
+}
+
+function buildFaxHeaderHtml(fax) {
+    const senderProfile = directoryProfiles.find((p) => p.id === fax.sender_user_id);
+    const senderLabel = senderProfile
+        ? `${senderProfile.fax_label} // ${senderProfile.name.toUpperCase()}`
+        : 'UKJENT AVSENDER';
+    return `
+        <span>NR_${senderProfile?.station_id || '??'} // ${escapeHtml(senderLabel)}</span>
+        <span>DATE: ${formatFaxDate(fax.created_at)}</span>
+    `;
+}
+
+async function runFaxReceiveAnimation(fax) {
+    const senderProfile = directoryProfiles.find((p) => p.id === fax.sender_user_id);
+    const senderName = senderProfile?.name || 'UKJENT';
+
+    showFaxMachineOverlay('receive', 'MOTTAR...', `INNKOMMENDE FRA ${senderName.toUpperCase()} — SKRIVER UT ARK...`);
+    playFaxMachineCycle(FAX_CYCLE_MS);
+
+    const paper = document.getElementById('faxEmergingPaper');
+    const body = document.getElementById('faxEmergingBody');
+    document.getElementById('faxEmergingHeader').innerHTML = buildFaxHeaderHtml(fax);
+    body.textContent = fax.content;
+    body.classList.add('thermal-print');
+
+    paper.classList.remove('hidden');
+    void paper.offsetWidth;
+    paper.classList.add('printing');
+
+    await Promise.all([
+        animateThermalReveal(body, FAX_CYCLE_MS),
+        delay(FAX_CYCLE_MS)
+    ]);
+
+    body.classList.remove('thermal-print');
+    hideFaxMachineOverlay();
+    clearFaxSoundCleanup();
+    markFaxSeen(fax.id);
+}
+
+async function runFaxSendAnimation(text, destProfile) {
+    const hintEl = document.getElementById('faxMachineHint');
+    const statusEl = document.getElementById('faxMachineStatus');
+    const intakeGlow = document.getElementById('jitflIntakeGlow');
+    const rollers = document.getElementById('jitflRollers');
+    const lcd = document.getElementById('jitflLcdText');
+    const destLabel = document.getElementById('jitflPaperDest');
+    const msgBody = document.getElementById('faxSendMessageBody');
+    const sendSheet = document.getElementById('faxSendSheet');
+
+    showFaxMachineOverlay(
+        'send',
+        'KLAR',
+        `SJEKK ARKET — NR ${destProfile.station_id} (${destProfile.name.toUpperCase()})`
+    );
+    playFaxMachineCycle(FAX_CYCLE_MS);
+
+    if (destLabel) {
+        destLabel.textContent = `TIL: NR ${destProfile.station_id} — ${destProfile.name.toUpperCase()}`;
+    }
+    if (msgBody) msgBody.textContent = text;
+    sendSheet.classList.remove('phase-feed');
+    sendSheet.classList.add('phase-pause');
+    if (lcd) lcd.textContent = 'ARK LASTET';
+
+    await delay(FAX_SEND_PAUSE_MS);
+
+    statusEl.innerText = 'SENDER...';
+    hintEl.innerText = 'MATER ARK INN I FAXMASKINEN...';
+    if (lcd) lcd.textContent = 'SENDING';
+    setFaxMachineTransmitting(true);
+    intakeGlow?.classList.add('active');
+    rollers?.classList.add('active');
+
+    sendSheet.classList.remove('phase-pause');
+    void sendSheet.offsetWidth;
+    sendSheet.classList.add('phase-feed');
+
+    await delay(FAX_SEND_FEED_MS);
+
+    intakeGlow?.classList.remove('active');
+    rollers?.classList.remove('active');
+    sendSheet.classList.remove('phase-feed');
+    sendSheet.classList.add('phase-pause');
+    hideFaxMachineOverlay();
+    clearFaxSoundCleanup();
+}
+
+async function processNewIncomingFaxes(fetchedList) {
+    const seen = loadSeenFaxIds();
+    const alreadyQueued = new Set(incomingFaxes.map((f) => f.id));
+    const toPrint = fetchedList
+        .filter((f) => !seen.has(f.id) && !alreadyQueued)
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    if (toPrint.length === 0) {
+        incomingFaxes = fetchedList;
+        if (stackViewIndex >= incomingFaxes.length) {
+            stackViewIndex = Math.max(0, incomingFaxes.length - 1);
+        }
+        renderFaxes();
+        return;
+    }
+
+    const pendingIds = new Set(toPrint.map((f) => f.id));
+    incomingFaxes = fetchedList.filter((f) => !pendingIds.has(f.id));
+    if (stackViewIndex >= incomingFaxes.length) {
+        stackViewIndex = Math.max(0, incomingFaxes.length - 1);
+    }
+    renderFaxes();
+
+    if (currentAppScreen !== 'inbox') {
+        setAppScreen('inbox', { skipFaxRefresh: true });
+    }
+
+    isFaxMachineBusy = true;
+    try {
+        for (const fax of toPrint) {
+            await runFaxReceiveAnimation(fax);
+            incomingFaxes = [fax, ...incomingFaxes];
+            stackViewIndex = 0;
+            renderFaxes();
+            playRetroSound('key');
+        }
+        incomingFaxes = fetchedList;
+        stackViewIndex = 0;
+        renderFaxes();
+    } finally {
+        isFaxMachineBusy = false;
+    }
+}
+
 const DTMF_FREQS = {
     '1': [697, 1209], '2': [697, 1336], '3': [697, 1477],
     '4': [770, 1209], '5': [770, 1336], '6': [770, 1477],
@@ -308,8 +660,11 @@ let directoryProfiles = [];
 let incomingFaxes = [];
 let dialedBuffer = "";
 let activeRecipientStation = null;
-let currentMode = "read";
+let currentAppScreen = 'kartotek';
 let paperCapacity = 3;
+
+const APP_SCREENS = ['kartotek', 'dialer', 'compose', 'send', 'inbox'];
+const NAV_SCREENS = ['kartotek', 'dialer', 'compose', 'send'];
 let kartotekIndex = 0;
 let stackViewIndex = 0;
 
@@ -318,7 +673,6 @@ async function initFaxApp() {
     if (!p) return;
 
     document.getElementById('sessionUserLabel').innerText = `${p.name} · NR ${p.station_id}`;
-    document.getElementById('sessionStationLabel').innerText = `NR ${p.station_id}`;
     document.getElementById('inboxTrayLabel').innerText = `INNKOMMENDE → NR ${p.station_id}`;
 
     dialedBuffer = "";
@@ -330,8 +684,8 @@ async function initFaxApp() {
     updateUIVariables();
     updatePaperGauge();
     renderKartotek();
-    setMode('read');
-    await refreshIncomingFaxes();
+    setAppScreen('kartotek', { skipFaxRefresh: true });
+    await refreshIncomingFaxes({ animateNew: true });
 }
 
 async function loadDirectory() {
@@ -345,10 +699,16 @@ async function loadDirectory() {
     directoryProfiles = (data || []).sort((a, b) => Number(a.station_id) - Number(b.station_id));
 }
 
+function setSendHints(text) {
+    const hint = document.getElementById('sendReadyHint');
+    const hintSend = document.getElementById('sendReadyHintSend');
+    if (hint) hint.innerText = text;
+    if (hintSend) hintSend.innerText = text;
+}
+
 function updateSendButtonState() {
     const btn = document.getElementById('startTransmissionBtn');
-    const hint = document.getElementById('sendReadyHint');
-    if (!btn || !hint) return;
+    if (!btn) return;
 
     const text = (document.getElementById('faxContentInput')?.value || '').trim();
     const match = resolveDialMatch(dialedBuffer);
@@ -361,27 +721,27 @@ function updateSendButtonState() {
     }
 
     if (paperCapacity <= 0) {
-        hint.innerText = 'Tomt for papir — klikk «LEGG INN MER PAPIR» først.';
+        setSendHints('Tomt for papir — legg inn mer papir på SEND-skjermen.');
         btn.disabled = true;
         btn.classList.add('opacity-40');
         return;
     }
 
     if (!connected) {
-        hint.innerText = 'Velg mottaker: bla i katalogen og klikk et navn, eller tast faxnummer på tastaturet.';
+        setSendHints('Velg mottaker i KATALOG eller tast NUMMER.');
         btn.disabled = true;
         btn.classList.add('opacity-40');
         return;
     }
 
     if (!text) {
-        hint.innerText = `Koblet til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id}) — skriv meldingen først.`;
+        setSendHints(`Koblet til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id}) — skriv melding under SKRIV.`);
         btn.disabled = true;
         btn.classList.add('opacity-40');
         return;
     }
 
-    hint.innerText = `Klar til sending til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id}).`;
+    setSendHints(`Klar: SEND FAX til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id}).`);
     btn.disabled = false;
     btn.classList.remove('opacity-40');
 }
@@ -398,7 +758,8 @@ function resolveDialMatch(buffer) {
     return { profile: null, status: 'not_found' };
 }
 
-async function refreshIncomingFaxes() {
+async function refreshIncomingFaxes(options = {}) {
+    const animateNew = options.animateNew !== false && !isFaxMachineBusy;
     const sb = getSupabase();
     const station = currentProfile.station_id;
     const { data, error } = await sb
@@ -411,13 +772,20 @@ async function refreshIncomingFaxes() {
     if (error) {
         showMsgBox('DATABASE FEIL', error.message);
         incomingFaxes = [];
+        renderFaxes();
+        return;
+    }
+
+    const fetched = data || [];
+    if (animateNew) {
+        await processNewIncomingFaxes(fetched);
     } else {
-        incomingFaxes = data || [];
+        incomingFaxes = fetched;
+        if (stackViewIndex >= incomingFaxes.length) {
+            stackViewIndex = Math.max(0, incomingFaxes.length - 1);
+        }
+        renderFaxes();
     }
-    if (stackViewIndex >= incomingFaxes.length) {
-        stackViewIndex = Math.max(0, incomingFaxes.length - 1);
-    }
-    renderFaxes();
 }
 
 function browseStackOlder() {
@@ -479,31 +847,23 @@ function renderKartotek() {
         const scale = idx === kartotekIndex ? 1.0 : 0.92;
         const opacity = idx === kartotekIndex ? 1.0 : 0.65;
         const translateY = idx === kartotekIndex ? -10 : 0;
-        const translateX = (idx - kartotekIndex) * 15;
+        const translateX = (idx - kartotekIndex) * 10;
 
-        card.className = "kartotek-card absolute w-11/12 max-w-[340px] p-3 text-xs font-mono text-stone-800 transition-all duration-300";
+        card.className = "kartotek-card kartotek-card--catalog absolute font-mono text-stone-800 transition-all duration-300";
         card.style.zIndex = offsetZ;
         card.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
         card.style.opacity = opacity;
 
         card.innerHTML = `
-            <div class="flex justify-between items-center -mt-6 mb-2">
-                <span class="bg-[#9e937d] text-stone-100 px-2 py-0.5 font-bold uppercase rounded-t-sm text-[9px] tracking-widest">
-                    ${profile.fax_label}
-                </span>
-                ${profile.id === currentProfile.id ? '<span class="text-[9px] text-[#2b251f] font-bold">[DIN MASKIN]</span>' : ''}
+            <div class="kartotek-card-meta">
+                <span class="kartotek-card-label">${escapeHtml(profile.fax_label)}</span>
+                ${profile.id === currentProfile.id ? '<span class="kartotek-card-own">[DIN MASKIN]</span>' : ''}
             </div>
-            <div class="flex justify-between items-start mt-2">
-                <div>
-                    <div class="font-extrabold text-sm uppercase text-stone-950">${profile.name}</div>
-                    <div class="text-[9px] text-stone-500 uppercase">${profile.description}</div>
-                </div>
-                <div class="text-right">
-                    <span class="bg-stone-900 text-yellow-500 font-extrabold px-2 py-1 rounded text-xs">
-                        NR ${profile.station_id}
-                    </span>
-                </div>
+            <div class="kartotek-card-main">
+                <div class="kartotek-card-name">${escapeHtml(profile.name)}</div>
+                <div class="kartotek-card-desc">${escapeHtml(profile.description)}</div>
             </div>
+            <div class="kartotek-card-station">NR ${escapeHtml(profile.station_id)}</div>
         `;
 
         card.onclick = () => {
@@ -511,7 +871,7 @@ function renderKartotek() {
                 dialedBuffer = profile.station_id;
                 playRetroSound('key');
                 updateUIVariables();
-                setMode('send');
+                setAppScreen('dialer');
             }
         };
 
@@ -533,10 +893,16 @@ function nextKartotekCard() {
     renderKartotek();
 }
 
+function setDestLabels(text) {
+    const dest = document.getElementById('telefaxDestId');
+    const destSend = document.getElementById('telefaxDestIdSend');
+    if (dest) dest.innerText = text;
+    if (destSend) destSend.innerText = text;
+}
+
 function updateUIVariables() {
     const me = currentProfile;
     document.getElementById("currentSenderLabel").innerText = `${me.name} · NR ${me.station_id}`;
-    document.getElementById("telefaxSenderId").innerText = `NR ${me.station_id} (${me.name})`;
 
     const padded = dialedBuffer.padEnd(2, '_');
     document.getElementById("dialNumberDisplay").innerText = `[ ${padded[0]} ][ ${padded[1]} ]`;
@@ -545,26 +911,26 @@ function updateUIVariables() {
 
     if (matchedProfile) {
         if (matchedProfile.id === me.id) {
-            document.getElementById("stationMatchInfo").innerHTML = `<span class="text-red-500">LOOP ERROR</span>`;
-            document.getElementById("telefaxDestId").innerText = "NOT CONNECTED (SELF)";
-            document.getElementById("dialerBlinker").innerText = "LOOPBACK ERROR";
+            document.getElementById("stationMatchInfo").innerHTML = `<span class="text-red-500">EGEN NR</span>`;
+            setDestLabels('IKKE KOBLET (EGEN)');
+            document.getElementById("dialerBlinker").innerText = "FEIL";
             activeRecipientStation = null;
         } else {
-            document.getElementById("stationMatchInfo").innerHTML = `<span class="text-green-400">CONNECT: ${matchedProfile.name.toUpperCase()}</span>`;
-            document.getElementById("telefaxDestId").innerText = `NR ${matchedProfile.station_id} (${matchedProfile.name})`;
-            document.getElementById("dialerBlinker").innerText = "CONNECTED";
+            document.getElementById("stationMatchInfo").innerHTML = `<span class="text-green-400">${matchedProfile.name.toUpperCase()}</span>`;
+            setDestLabels(`NR ${matchedProfile.station_id} (${matchedProfile.name})`);
+            document.getElementById("dialerBlinker").innerText = "KOBLET";
             activeRecipientStation = matchedProfile.station_id;
         }
     } else {
         activeRecipientStation = null;
-        document.getElementById("telefaxDestId").innerText = "NOT CONNECTED";
+        setDestLabels('IKKE KOBLET');
         document.getElementById("dialerBlinker").innerText = "IDLE";
         if (status === 'not_found' && dialedBuffer.length > 0) {
-            document.getElementById("stationMatchInfo").innerHTML = `<span class="text-amber-500">NR IKKE FUNNET</span>`;
+            document.getElementById("stationMatchInfo").innerHTML = `<span class="text-amber-500">UKJENT NR</span>`;
         } else if (status === 'dialing') {
             document.getElementById("stationMatchInfo").innerText = "RINGER...";
         } else {
-            document.getElementById("stationMatchInfo").innerText = dialedBuffer.length > 0 ? "RINGER..." : "INGEN NUMMER VALGT";
+            document.getElementById("stationMatchInfo").innerText = dialedBuffer.length > 0 ? "RINGER..." : "INGEN NUMMER";
         }
     }
 
@@ -580,6 +946,13 @@ function pressDialKey(num) {
     }
 
     updateUIVariables();
+
+    if (dialedBuffer.length === 2) {
+        const match = resolveDialMatch(dialedBuffer);
+        if (match.status === 'connected' && match.profile && match.profile.id !== currentProfile?.id) {
+            setAppScreen('compose', { skipFaxRefresh: true });
+        }
+    }
 }
 
 function clearDialKey() {
@@ -606,48 +979,57 @@ function reloadPaper() {
 }
 
 function updatePaperGauge() {
-    document.getElementById("paperPercentText").innerText = `${paperCapacity} / 3`;
+    document.getElementById("paperPercentText").innerText = `${paperCapacity}/3`;
     const container = document.getElementById("paperIndicatorsContainer");
     container.innerHTML = "";
 
     for (let i = 0; i < 3; i++) {
         const isLit = i < paperCapacity;
         const led = document.createElement("div");
-        led.className = `w-full h-3 border border-stone-800 ${isLit ? 'bg-green-500 shadow-[0_0_5px_#22c55e]' : 'bg-stone-700'}`;
+        led.className = `flex-1 h-2.5 border border-stone-800 ${isLit ? 'bg-green-500 shadow-[0_0_5px_#22c55e]' : 'bg-stone-700'}`;
         container.appendChild(led);
     }
 }
 
-function setMode(mode) {
-    currentMode = mode;
+window.setAppScreen = setAppScreen;
+
+function updateInboxBadge() {
+    const badge = document.getElementById('inboxBadge');
+    if (!badge) return;
+    const count = incomingFaxes.length;
+    if (count > 0) {
+        badge.innerText = count > 9 ? '9+' : String(count);
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
+function setAppScreen(screen, options = {}) {
+    if (!APP_SCREENS.includes(screen)) return;
+    if (isFaxMachineBusy && screen !== 'inbox') return;
+
+    currentAppScreen = screen;
     playRetroSound('key');
 
-    const readBtn = document.getElementById("modeBtnRead");
-    const sendBtn = document.getElementById("modeBtnSend");
-    const readPanel = document.getElementById("readModePanel");
-    const sendPanel = document.getElementById("sendModePanel");
-    const dialerPanel = document.getElementById("dialerPanel");
-    const workspacePanel = document.getElementById("workspacePanel");
+    APP_SCREENS.forEach((id) => {
+        const el = document.getElementById(`screen${id.charAt(0).toUpperCase()}${id.slice(1)}`);
+        if (el) el.classList.toggle('is-active', id === screen);
+    });
 
-    if (mode === 'read') {
-        readBtn.classList.add('active');
-        sendBtn.classList.remove('active');
-        readPanel.classList.remove('hidden');
-        sendPanel.classList.add('hidden');
-        dialerPanel.classList.add('hidden');
-        workspacePanel.classList.remove('lg:col-span-8');
-        workspacePanel.classList.add('lg:col-span-12');
-        refreshIncomingFaxes();
-    } else {
-        readBtn.classList.remove('active');
-        sendBtn.classList.add('active');
-        readPanel.classList.add('hidden');
-        sendPanel.classList.remove('hidden');
-        dialerPanel.classList.remove('hidden');
-        workspacePanel.classList.add('lg:col-span-8');
-        workspacePanel.classList.remove('lg:col-span-12');
+    NAV_SCREENS.forEach((id) => {
+        const btn = document.getElementById(`nav${id.charAt(0).toUpperCase()}${id.slice(1)}`);
+        if (btn) btn.classList.toggle('active', id === screen);
+    });
+
+    if (screen === 'inbox' && !options.skipFaxRefresh) {
+        refreshIncomingFaxes({ animateNew: !isFaxMachineBusy });
+    }
+
+    if (screen === 'compose' || screen === 'send' || screen === 'dialer') {
         updateUIVariables();
     }
+
 }
 
 function formatFaxDate(iso) {
@@ -679,6 +1061,7 @@ function renderFaxes() {
                 <span>[ INGEN FAX MOTTATT PÅ NR ${currentProfile.station_id} ]</span>
             </div>
         `;
+        updateInboxBadge();
         return;
     }
 
@@ -728,6 +1111,7 @@ function renderFaxes() {
     });
 
     updateStackControls();
+    updateInboxBadge();
 }
 
 function getViewedFax() {
@@ -780,6 +1164,8 @@ async function sendTopToBack() {
 }
 
 async function startTransmission() {
+    if (isFaxMachineBusy) return;
+
     updateSendButtonState();
 
     const match = resolveDialMatch(dialedBuffer);
@@ -799,42 +1185,28 @@ async function startTransmission() {
 
     const inputEl = document.getElementById("faxContentInput");
     const text = inputEl.value.trim().toUpperCase();
+    const destProfile = match.profile || directoryProfiles.find((p) => p.station_id === activeRecipientStation);
 
     if (!text) {
         showMsgBox("BLANK SHEET DETECTED", "AVBRUTT: OPTISK SKANNER DETEKTERTE ET BLANKT ARK. SKRIV MELDE-TEKST FØR DU MATER INN ARKET.");
         return;
     }
 
-    const overlay = document.getElementById("transmittingOverlay");
-    const progress = document.getElementById("transmissionProgress");
-    const header = document.getElementById("transmissionHeader");
-    const log = document.getElementById("transmissionLog");
+    if (!destProfile) {
+        showMsgBox("INGEN MOTTAKER", "Kunne ikke finne mottaker i katalogen.");
+        return;
+    }
 
-    overlay.classList.remove("hidden");
-    progress.style.width = "0%";
-    header.innerText = "COAX DIALING...";
-    log.innerHTML = "<div>[SYS] COUPLER RELAY DETECTED...</div>";
+    const sendBtn = document.getElementById('startTransmissionBtn');
+    isFaxMachineBusy = true;
+    if (sendBtn) sendBtn.disabled = true;
 
-    playScreamingFaxHandshake();
+    setAppScreen('send', { skipFaxRefresh: true });
 
-    const steps = [
-        { time: 600, label: "COMMENCING MODEM HANDSHAKE...", progress: 20 },
-        { time: 1300, label: "SENDING 1100Hz CALLING TONE (CNG)...", progress: 40 },
-        { time: 2100, label: "RECEIVING 2100Hz ANSWERBACK (CED)...", progress: 60 },
-        { time: 3000, label: "SYNCHRONIZING BAUD RATE SPECTRUMS...", progress: 75 },
-        { time: 4200, label: "TRANSMITTING OPTICAL SHEET BUFFER...", progress: 90 },
-        { time: 5100, label: "TRANSMISSION SUCCESSFUL (OK)", progress: 100 }
-    ];
+    try {
+        initAudio();
+        await runFaxSendAnimation(text, destProfile);
 
-    steps.forEach(step => {
-        setTimeout(() => {
-            header.innerText = step.label;
-            progress.style.width = `${step.progress}%`;
-            log.innerHTML += `<div>[OK] ${step.label}</div>`;
-        }, step.time);
-    });
-
-    setTimeout(async () => {
         const sb = getSupabase();
         const { error } = await sb.from('faxes').insert({
             sender_user_id: currentProfile.id,
@@ -843,8 +1215,8 @@ async function startTransmission() {
             stack_order: Date.now()
         });
 
-        overlay.classList.add("hidden");
         inputEl.value = "";
+        updateSendButtonState();
 
         if (error) {
             showMsgBox('TRANSMISSION FEIL', error.message);
@@ -853,18 +1225,13 @@ async function startTransmission() {
 
         paperCapacity--;
         updatePaperGauge();
-        setMode('read');
-
-        let printStep = 0;
-        const interval = setInterval(() => {
-            if (printStep < 4) {
-                playRetroSound('type');
-                printStep++;
-            } else {
-                clearInterval(interval);
-            }
-        }, 200);
-    }, 5500);
+        showMsgBox('SENDT', `FAX OVERFØRT TIL NR ${destProfile.station_id} (${destProfile.name}).`);
+        setAppScreen('compose', { skipFaxRefresh: true });
+        await refreshIncomingFaxes({ animateNew: false });
+    } finally {
+        isFaxMachineBusy = false;
+        updateSendButtonState();
+    }
 }
 
 function showMsgBox(title, text) {

@@ -2,7 +2,9 @@
 <html lang="no">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2b3a4a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>FaxChat v1.2 - Retro Analog Workstation</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,11 +13,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="min-h-screen flex flex-col justify-between p-3 md:p-6">
+<body class="mobile-body">
 
     <!-- INNLOGGING -->
-    <div id="loginScreen" class="flex-grow flex items-center justify-center">
-        <div class="max-w-md w-full bg-[#d6cebf] bevel-out p-6 md:p-8 shadow-2xl">
+    <div id="loginScreen" class="login-screen flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-[#d6cebf] bevel-out p-6 shadow-2xl">
             <div class="flex items-center gap-3 mb-6">
                 <div class="bg-zinc-900 p-3 border-2 border-[#9e9584] text-white">
                     <i class="fa-solid fa-fax text-2xl text-stone-300"></i>
@@ -27,7 +29,6 @@
                     <p class="text-[10px] text-stone-600 font-mono">TERMINAL TILKOBLING // FX-99</p>
                 </div>
             </div>
-
             <form id="loginForm" class="lcd-display scanlines p-5 rounded-sm flex flex-col gap-4">
                 <p class="text-[10px] font-mono opacity-90">Logg inn med <strong>e-post + passord</strong> du får fra administrator.</p>
                 <div>
@@ -48,212 +49,273 @@
         </div>
     </div>
 
-    <!-- APP (etter innlogging) -->
-    <div id="appScreen" class="hidden flex flex-col flex-grow w-full">
-        <div class="max-w-6xl mx-auto w-full mb-3 bg-zinc-800 border-2 border-zinc-700 p-2 text-xs flex flex-wrap justify-between items-center text-zinc-300 gap-2">
-            <div class="flex items-center gap-2">
-                <span class="inline-block w-2.5 h-2.5 bg-green-500 rounded-full"></span>
+    <!-- APP (mobil: 4 hovedskjermer) -->
+    <div id="appScreen" class="mobile-app hidden">
+        <header class="app-session-bar">
+            <div class="app-session-user">
+                <span class="app-session-dot"></span>
                 <strong id="sessionUserLabel">—</strong>
-                <span class="text-zinc-500">|</span>
-                <span id="sessionStationLabel">STN —</span>
             </div>
-            <button type="button" onclick="logout()" class="btn-retro px-3 py-1 text-xs font-bold font-mono">LOGG UT</button>
-        </div>
+            <div class="app-session-actions">
+                <button type="button" id="btnOpenInbox" onclick="setAppScreen('inbox')" class="app-inbox-btn" title="Innkommende fax">
+                    <i class="fa-solid fa-inbox"></i>
+                    <span id="inboxBadge" class="app-inbox-badge hidden">0</span>
+                </button>
+                <button type="button" onclick="logout()" class="btn-retro px-2 py-1 text-[10px] font-bold font-mono">UT</button>
+            </div>
+        </header>
 
-        <div class="max-w-6xl mx-auto w-full bg-[#d6cebf] bevel-out p-5 md:p-8 flex-grow flex flex-col gap-6 relative shadow-2xl">
+        <nav class="app-main-nav" aria-label="Hovedskjermer">
+            <button type="button" id="navKartotek" data-screen="kartotek" onclick="setAppScreen('kartotek')" class="app-nav-btn active">
+                <i class="fa-solid fa-box-archive"></i>
+                <span>KATALOG</span>
+            </button>
+            <button type="button" id="navDialer" data-screen="dialer" onclick="setAppScreen('dialer')" class="app-nav-btn">
+                <i class="fa-solid fa-phone"></i>
+                <span>NUMMER</span>
+            </button>
+            <button type="button" id="navCompose" data-screen="compose" onclick="setAppScreen('compose')" class="app-nav-btn">
+                <i class="fa-solid fa-pen-to-square"></i>
+                <span>SKRIV</span>
+            </button>
+            <button type="button" id="navSend" data-screen="send" onclick="setAppScreen('send')" class="app-nav-btn">
+                <i class="fa-solid fa-fax"></i>
+                <span>SEND</span>
+            </button>
+        </nav>
 
-            <div class="flex flex-col md:flex-row justify-between items-stretch pb-5 border-b-4 border-[#9e9584] gap-4">
-                <div class="flex items-center gap-3">
-                    <div class="bg-zinc-900 p-3 border-2 border-[#9e9584] text-white">
-                        <i class="fa-solid fa-fax text-3xl text-stone-300"></i>
-                    </div>
-                    <div>
-                        <h1 class="text-3xl md:text-4xl font-extrabold tracking-wider text-stone-800" style="font-family: 'Courier Prime', monospace;">
-                            FAXCHAT <span class="text-sm font-normal bg-stone-700 text-stone-200 px-2 py-0.5 relative -top-3">V1.2</span>
-                        </h1>
-                        <p class="text-[10px] text-stone-600 font-mono">ANALOG OPTICAL SCANNER // MODEL FX-99</p>
+        <main class="app-screen-viewport bg-[#d6cebf] bevel-out">
+            <!-- 1. Telefonkatalog -->
+            <section id="screenKartotek" class="app-screen is-active" aria-label="Telefonkatalog">
+                <div class="app-screen-header">
+                    <h2 class="app-screen-title"><i class="fa-solid fa-box-archive"></i> TELEFONKATALOG</h2>
+                    <p class="app-screen-desc">Klikk et kort for å velge mottaker</p>
+                </div>
+                <div class="app-screen-body app-screen-body--center">
+                    <div class="kartotek-drawer app-kartotek-full flex-grow flex items-center justify-center p-3 min-h-0">
+                        <div id="kartotekCardContainer" class="kartotek-card-container w-full relative flex justify-center items-center"></div>
                     </div>
                 </div>
-
-                <div class="flex flex-wrap items-center gap-4 justify-between md:justify-end">
-                    <div class="bg-[#b8b0a1] p-2 border border-[#9e9584] font-mono text-xs flex flex-col justify-center gap-1 text-stone-800 min-w-[140px]">
-                        <div class="flex justify-between font-bold text-[10px]">
-                            <span>TERMISK PAPIR</span>
-                            <span id="paperPercentText">3 / 3</span>
-                        </div>
-                        <div class="flex gap-1" id="paperIndicatorsContainer"></div>
-                    </div>
-                    <button type="button" onclick="reloadPaper()" class="btn-hardware-red px-4 py-2 text-xs font-bold font-mono uppercase flex items-center gap-2 relative group active:scale-95 transition-all">
-                        <i class="fa-solid fa-rotate text-sm"></i>
-                        <span>LEGG INN MER PAPIR</span>
+                <footer class="app-screen-footer">
+                    <button type="button" onclick="prevKartotekCard()" class="btn-retro flex-1 py-3 text-xs font-bold">
+                        <i class="fa-solid fa-chevron-left"></i> FORRIGE
                     </button>
-                    <div class="flex items-center gap-2 bg-[#b8b0a1] p-2 border border-[#9e9584] text-xs font-mono text-stone-800">
-                        <div class="led-green" id="connectedLed"></div>
-                        <span>SYSTEM READY</span>
-                    </div>
-                </div>
-            </div>
+                    <button type="button" onclick="nextKartotekCard()" class="btn-retro flex-1 py-3 text-xs font-bold">
+                        NESTE <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </footer>
+            </section>
 
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center bg-[#bdae99] p-4 rounded-sm border border-stone-500">
-                <div class="md:col-span-4 font-mono text-stone-800">
-                    <h3 class="font-extrabold text-sm tracking-wide flex items-center gap-2 uppercase">
-                        <i class="fa-solid fa-box-archive"></i> SYSTEM KARTOTEK
-                    </h3>
-                    <p class="text-[10px] text-stone-600 mt-1">Telefonkatalog — klikk kort for å slå nummer ved sending.</p>
-                    <div class="flex gap-2 mt-3">
-                        <button type="button" onclick="prevKartotekCard()" class="btn-retro px-3 py-1 text-xs font-bold"><i class="fa-solid fa-chevron-left"></i> FORRIGE</button>
-                        <button type="button" onclick="nextKartotekCard()" class="btn-retro px-3 py-1 text-xs font-bold">NESTE <i class="fa-solid fa-chevron-right"></i></button>
-                    </div>
+            <!-- 2. Tast inn nummer -->
+            <section id="screenDialer" class="app-screen" aria-label="Faxnummer">
+                <div class="app-screen-header">
+                    <h2 class="app-screen-title"><i class="fa-solid fa-phone"></i> FAXNUMMER</h2>
+                    <p class="app-screen-desc">Tast to siffer eller velg fra katalog</p>
                 </div>
-                <div class="md:col-span-8 kartotek-drawer p-4 relative min-h-[140px] flex items-center justify-center overflow-hidden">
-                    <div id="kartotekCardContainer" class="w-full max-w-sm relative h-[90px] flex justify-center items-center"></div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
-                <div id="dialerPanel" class="lg:col-span-4 flex flex-col gap-4">
-                    <div class="p-2 bg-[#b5ad9e] border-b-2 border-[#9e9584]">
-                        <h2 class="text-xs font-bold text-stone-800 flex items-center gap-2 uppercase">
-                            <i class="fa-solid fa-phone"></i> TRANSMISSION DIALER
-                        </h2>
-                    </div>
-                    <div class="lcd-display scanlines p-4 flex flex-col justify-center gap-2 min-h-[90px] rounded-sm">
+                <div class="app-screen-body flex flex-col gap-3 p-3 min-h-0">
+                    <div class="lcd-display scanlines p-4 flex flex-col gap-2 rounded-sm shrink-0">
                         <div class="text-[10px] opacity-80 flex justify-between font-mono">
-                            <span>CONNECTED TRANSCEIVER STATUS:</span>
+                            <span>STATUS:</span>
                             <span class="animate-pulse" id="dialerBlinker">IDLE</span>
                         </div>
-                        <div class="flex items-center justify-between">
-                            <div class="text-3xl font-mono tracking-widest font-extrabold" id="dialNumberDisplay">[ _ _ ]</div>
-                            <div class="text-right text-xs font-mono max-w-[180px] truncate" id="stationMatchInfo">NO STATION DIALED</div>
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="text-4xl font-mono tracking-widest font-extrabold" id="dialNumberDisplay">[ _ _ ]</div>
+                            <div class="text-right text-[10px] font-mono flex-1" id="stationMatchInfo">INGEN NUMMER</div>
                         </div>
                     </div>
-                    <div class="grid grid-cols-3 gap-2 bg-[#c6beaf] p-3 border-2 border-[#a49a88] rounded-sm shadow-inner">
-                        <button type="button" onclick="pressDialKey('1')" class="btn-retro py-3 font-extrabold text-stone-800 text-lg">1</button>
-                        <button type="button" onclick="pressDialKey('2')" class="btn-retro py-3 font-extrabold text-stone-800 text-lg">2</button>
-                        <button type="button" onclick="pressDialKey('3')" class="btn-retro py-3 font-extrabold text-stone-800 text-lg">3</button>
-                        <button type="button" onclick="pressDialKey('4')" class="btn-retro py-3 font-extrabold text-stone-800 text-lg">4</button>
-                        <button type="button" onclick="pressDialKey('5')" class="btn-retro py-3 font-extrabold text-stone-800 text-lg">5</button>
-                        <button type="button" onclick="pressDialKey('6')" class="btn-retro py-3 font-extrabold text-stone-800 text-lg">6</button>
-                        <button type="button" onclick="pressDialKey('7')" class="btn-retro py-3 font-extrabold text-stone-800 text-lg">7</button>
-                        <button type="button" onclick="pressDialKey('8')" class="btn-retro py-3 font-extrabold text-stone-800 text-lg">8</button>
-                        <button type="button" onclick="pressDialKey('9')" class="btn-retro py-3 font-extrabold text-stone-800 text-lg">9</button>
-                        <button type="button" onclick="clearDialKey()" class="btn-retro py-3 font-bold text-red-800 text-sm">CLEAR *</button>
-                        <button type="button" onclick="pressDialKey('0')" class="btn-retro py-3 font-extrabold text-stone-800 text-lg">0</button>
-                        <button type="button" onclick="showPhoneBellAlert()" class="btn-retro py-3 font-bold text-amber-800 text-sm">BELL #</button>
-                    </div>
-                </div>
-
-                <div id="workspacePanel" class="lg:col-span-8 flex flex-col gap-4">
-                    <div class="flex bg-[#b5ad9e] p-2 border-2 border-[#9e9584] justify-between items-center rounded-sm flex-wrap gap-2">
-                        <span class="text-xs font-bold text-stone-800 uppercase px-1">
-                            SENDER FRA: <span class="text-blue-900 font-extrabold" id="currentSenderLabel">—</span>
-                        </span>
-                        <div class="flex gap-2">
-                            <button type="button" id="modeBtnRead" onclick="setMode('read')" class="btn-retro active px-3 py-1.5 text-xs font-bold flex items-center gap-1">
-                                <i class="fa-solid fa-file-invoice"></i> LESE INNKOMMENDE
-                            </button>
-                            <button type="button" id="modeBtnSend" onclick="setMode('send')" class="btn-retro px-3 py-1.5 text-xs font-bold flex items-center gap-1">
-                                <i class="fa-solid fa-paper-plane"></i> SENDE NY FAX
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="flex-grow flex flex-col relative min-h-[460px]">
-                        <div id="readModePanel" class="flex-grow flex flex-col">
-                            <div class="bg-zinc-800 h-6 border-b-4 border-[#9e9584] rounded-t relative shadow-inner flex items-center justify-between px-4">
-                                <div class="w-3 h-3 bg-green-500 rounded-full animate-ping"></div>
-                                <div class="w-10/12 h-1 bg-black rounded"></div>
-                                <span class="text-[9px] text-zinc-400 font-mono" id="inboxTrayLabel">INNKOMMENDE TRAY</span>
-                            </div>
-                            <div class="flex-grow bg-[#c2baa9] p-3 flex flex-col justify-between border-x-4 border-b-4 border-[#9e9584] overflow-hidden relative max-h-[480px]">
-                                <div class="absolute top-2 left-4 right-4 z-20 flex flex-wrap gap-2 justify-between items-start">
-                                    <div class="flex flex-wrap gap-2">
-                                        <button type="button" onclick="discardTopPaper()" class="bg-stone-700/80 hover:bg-stone-800 hover:text-red-300 text-stone-200 px-3 py-1 text-[10px] font-bold font-mono uppercase tracking-wider rounded-sm shadow cursor-pointer">
-                                            <i class="fa-solid fa-trash-can mr-1"></i> Kast dette ark
-                                        </button>
-                                        <button type="button" onclick="sendTopToBack()" class="bg-stone-700/80 hover:bg-stone-800 hover:text-amber-200 text-stone-200 px-3 py-1 text-[10px] font-bold font-mono uppercase tracking-wider rounded-sm shadow cursor-pointer">
-                                            <i class="fa-solid fa-layer-group mr-1"></i> Legg bakerst i bunken
-                                        </button>
-                                        <button type="button" onclick="refreshIncomingFaxes()" class="bg-stone-700/80 hover:bg-stone-800 text-stone-200 px-3 py-1 text-[10px] font-bold font-mono uppercase tracking-wider rounded-sm shadow cursor-pointer">
-                                            <i class="fa-solid fa-arrows-rotate mr-1"></i> Oppdater
-                                        </button>
-                                    </div>
-                                    <span id="stackPositionLabel" class="bg-stone-900/85 text-amber-300 px-3 py-1 text-[10px] font-bold font-mono rounded-sm shadow">
-                                        BUNKE: 0 ARK
-                                    </span>
-                                </div>
-                                <div id="paperStackContainer" class="flex-grow relative h-[400px] mt-8"></div>
-                                <div id="stackNavBar" class="hidden mt-2 flex flex-wrap items-center justify-center gap-3 bg-[#b5ad9e] border-2 border-[#9e9584] p-2 rounded-sm">
-                                    <button type="button" id="btnStackNewer" onclick="browseStackNewer()" class="btn-retro px-4 py-2 text-xs font-bold font-mono">
-                                        <i class="fa-solid fa-chevron-up mr-1"></i> NYERE ARK
-                                    </button>
-                                    <span id="stackBrowseHint" class="text-[10px] font-mono text-stone-700 text-center min-w-[140px]">ØVERST I BUNKEN</span>
-                                    <button type="button" id="btnStackOlder" onclick="browseStackOlder()" class="btn-retro px-4 py-2 text-xs font-bold font-mono">
-                                        <i class="fa-solid fa-chevron-down mr-1"></i> ELDRE ARK
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="sendModePanel" class="hidden flex-grow flex flex-col">
-                            <div class="bg-stone-500 p-2 text-center text-xs text-stone-200 font-bold tracking-widest border-t-4 border-[#9e9584] rounded-t">
-                                <i class="fa-solid fa-arrow-down-long"></i> FAX SCANNING TRAY (1 SHEET LOADED)
-                            </div>
-                            <div class="flex-grow bg-[#c2baa9] p-3 flex flex-col justify-between border-x-4 border-b-4 border-[#9e9584]">
-                                <div class="flex-grow fax-compose-sheet p-5 flex flex-col shadow-inner min-h-[360px]">
-                                    <div class="border-b-2 border-dashed border-stone-300 pb-3 mb-3 flex flex-col sm:flex-row justify-between text-xs font-mono text-stone-500">
-                                        <div class="flex flex-col">
-                                            <span><strong>TELEFAX MESSAGE TRANSMISSION SHEET</strong></span>
-                                            <span>SOURCE: <span id="telefaxSenderId" class="text-stone-900 font-bold">—</span></span>
-                                        </div>
-                                        <div class="flex flex-col text-right">
-                                            <span><strong>RECEIVING TARGET:</strong></span>
-                                            <span>ADDR: <span id="telefaxDestId" class="text-amber-700 font-bold">NOT CONNECTED</span></span>
-                                        </div>
-                                    </div>
-                                    <div class="flex-grow flex flex-col">
-                                        <label class="text-[10px] font-bold text-stone-400 font-mono tracking-wider mb-1 uppercase">Write message content below for optical scan:</label>
-                                        <textarea id="faxContentInput"
-                                                  placeholder="SKRIV TELEGRAM-TEKST HER..."
-                                                  class="flex-grow w-full border-2 border-dashed border-stone-200 p-4 font-mono text-stone-800 text-base uppercase tracking-wider focus:outline-none focus:border-stone-500 resize-none"
-                                                  onkeydown="playRetroSound('type')"
-                                                  oninput="updateSendButtonState()"
-                                                  style="background-color: #fafcf6; line-height: 1.5;"></textarea>
-                                    </div>
-                                    <div class="mt-4 border-t border-stone-200 pt-3 flex flex-col gap-2">
-                                        <p id="sendReadyHint" class="text-[10px] font-mono text-amber-700">Velg mottaker: bla i katalogen eller tast faxnummer på tastaturet.</p>
-                                        <div class="flex flex-wrap gap-2 justify-between items-center">
-                                        <span class="text-[9px] text-stone-400 font-mono">ENCRYPTED PROTOCOL FX-99</span>
-                                        <button type="button" id="startTransmissionBtn" onclick="startTransmission()" disabled
-                                                class="bg-red-700 hover:bg-red-800 disabled:bg-stone-500 disabled:border-stone-600 disabled:cursor-not-allowed text-white font-extrabold px-5 py-2.5 border-4 border-red-900 shadow-md text-xs tracking-widest active:scale-95 transition-all flex items-center gap-2 opacity-40 cursor-pointer">
-                                            <i class="fa-solid fa-bolt animate-pulse"></i> START TRANSMISSION
-                                        </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="transmittingOverlay" class="hidden absolute inset-0 bg-stone-900/95 flex flex-col justify-center items-center z-50 p-6 font-mono text-center rounded-b">
-                            <div class="lcd-display scanlines p-6 max-w-md w-full flex flex-col gap-4 border-4 border-[#9e9584]">
-                                <div class="text-2xl text-amber-500 font-extrabold animate-pulse mb-1 tracking-widest" id="transmissionHeader">CONNECTING...</div>
-                                <div class="w-full bg-zinc-800 h-4 border border-amber-600 p-0.5">
-                                    <div id="transmissionProgress" class="h-full bg-amber-500" style="width: 0%"></div>
-                                </div>
-                                <div class="text-[11px] text-left text-amber-500 opacity-90 h-24 overflow-hidden flex flex-col gap-1 justify-end" id="transmissionLog">
-                                    <div>[LOG] COUPLER VOLTAGE DETECTED...</div>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="grid grid-cols-3 gap-2 bg-[#c6beaf] p-3 border-2 border-[#a49a88] rounded-sm shadow-inner flex-grow content-center max-h-[min(52vh,420px)]">
+                        <button type="button" onclick="pressDialKey('1')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">1</button>
+                        <button type="button" onclick="pressDialKey('2')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">2</button>
+                        <button type="button" onclick="pressDialKey('3')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">3</button>
+                        <button type="button" onclick="pressDialKey('4')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">4</button>
+                        <button type="button" onclick="pressDialKey('5')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">5</button>
+                        <button type="button" onclick="pressDialKey('6')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">6</button>
+                        <button type="button" onclick="pressDialKey('7')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">7</button>
+                        <button type="button" onclick="pressDialKey('8')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">8</button>
+                        <button type="button" onclick="pressDialKey('9')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">9</button>
+                        <button type="button" onclick="clearDialKey()" class="btn-retro py-4 font-bold text-red-800 text-sm">CLEAR</button>
+                        <button type="button" onclick="pressDialKey('0')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">0</button>
+                        <button type="button" onclick="showPhoneBellAlert()" class="btn-retro py-4 font-bold text-amber-800 text-sm">BELL</button>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="border-t-4 border-[#9e9584] pt-4 mt-2 flex flex-col md:flex-row justify-between items-center gap-2 text-[10px] font-mono text-stone-500">
-                <span>© 1990 TELEFAX MANUFACTURING CO. // SIERRA PROTOCOL FX-99</span>
-                <span>HARDWARE STATE: COUPLER IDLE // STACKED PAPER DISPENSER v1.2</span>
+            <!-- 3. Skriv melding -->
+            <section id="screenCompose" class="app-screen app-screen--compose" aria-label="Skriv melding">
+                <div class="app-screen-header">
+                    <h2 class="app-screen-title"><i class="fa-solid fa-pen-to-square"></i> SKRIV FAX</h2>
+                    <p class="app-screen-desc compose-meta-text">
+                        FRA: <span id="currentSenderLabel" class="font-bold">—</span>
+                        · TIL: <span id="telefaxDestId" class="text-amber-800 font-bold">—</span>
+                    </p>
+                </div>
+                <div class="app-screen-body p-3 min-h-0 flex flex-col">
+                    <div class="fax-compose-sheet flex-grow flex flex-col p-4 shadow-inner min-h-0">
+                        <label class="compose-label font-bold text-stone-400 font-mono tracking-wider mb-2 uppercase shrink-0">Melding til optisk skanner:</label>
+                        <textarea id="faxContentInput"
+                                  placeholder="SKRIV TELEGRAM-TEKST HER..."
+                                  class="compose-textarea flex-grow w-full min-h-[120px] border-2 border-dashed border-stone-200 p-4 font-mono text-stone-800 uppercase tracking-wider focus:outline-none focus:border-stone-500 resize-none"
+                                  onkeydown="playRetroSound('type')"
+                                  oninput="updateSendButtonState()"
+                                  style="background-color: #fafcf6;"></textarea>
+                    </div>
+                </div>
+                <footer class="app-screen-footer flex-col gap-2 !items-stretch">
+                    <p id="sendReadyHint" class="compose-hint font-mono text-amber-800 text-center">Velg mottaker i katalog eller tast nummer.</p>
+                    <button type="button" onclick="setAppScreen('send')" class="btn-retro compose-goto-send-btn w-full font-bold font-mono">
+                        GÅ TIL SEND-MASKIN <i class="fa-solid fa-arrow-right ml-1"></i>
+                    </button>
+                </footer>
+            </section>
+
+            <!-- 4. Faxmaskin / send -->
+            <section id="screenSend" class="app-screen" aria-label="Send fax">
+                <div class="app-screen-header app-screen-header--compact">
+                    <div class="flex justify-between items-center w-full gap-2">
+                        <h2 class="app-screen-title !mb-0"><i class="fa-solid fa-fax"></i> SEND</h2>
+                        <div class="flex items-center gap-2 text-[10px] font-mono text-stone-700">
+                            <span>PAPIR <strong id="paperPercentText">3/3</strong></span>
+                            <div class="flex gap-0.5 w-12" id="paperIndicatorsContainer"></div>
+                            <button type="button" onclick="reloadPaper()" class="btn-hardware-red px-2 py-1 text-[9px] font-bold" title="Legg inn papir">
+                                <i class="fa-solid fa-rotate"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="app-screen-desc w-full mt-1">
+                        MOTTAKER: <span id="telefaxDestIdSend" class="font-bold text-amber-900">—</span>
+                    </p>
+                </div>
+                <div class="app-screen-body app-screen-body--send p-2 min-h-0">
+                    <div id="jitflIdlePreview" class="jitfl-idle-preview" aria-hidden="true">
+                        <div class="jitfl-machine jitfl-machine--compact">
+                            <div class="jitfl-machine-bezel">
+                                <div class="jitfl-lcd"><span class="jitfl-lcd-text">FX-99 READY</span></div>
+                                <div class="jitfl-leds">
+                                    <span class="jitfl-led jitfl-led--green lit"></span>
+                                    <span class="jitfl-led jitfl-led--amber"></span>
+                                </div>
+                            </div>
+                            <div class="jitfl-chassis-body">
+                                <div class="jitfl-brand">TELEFAX CO.</div>
+                                <div class="jitfl-intake-bar"></div>
+                            </div>
+                        </div>
+                        <p class="jitfl-idle-hint font-mono text-stone-600 text-center text-xs mt-2">TRYKK SEND FAX NEDENFOR</p>
+                    </div>
+                </div>
+                <footer class="app-screen-footer flex-col gap-2 !items-stretch">
+                    <p id="sendReadyHintSend" class="text-[10px] font-mono text-amber-800 text-center">—</p>
+                    <button type="button" id="startTransmissionBtn" onclick="startTransmission()" disabled
+                            class="btn-hardware-red w-full py-4 text-sm font-extrabold font-mono uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-bolt"></i> SEND FAX
+                    </button>
+                </footer>
+            </section>
+
+            <!-- Innboks (via header, ikke i hovednav) -->
+            <section id="screenInbox" class="app-screen" aria-label="Innkommende fax">
+                <div class="app-screen-header">
+                    <h2 class="app-screen-title"><i class="fa-solid fa-inbox"></i> INNKOMMENDE</h2>
+                    <p class="app-screen-desc" id="inboxTrayLabel">NR —</p>
+                </div>
+                <div class="app-screen-body p-2 min-h-0 flex flex-col relative">
+                    <div class="inbox-toolbar flex flex-wrap gap-3 mb-2 shrink-0 items-center">
+                        <button type="button" onclick="discardTopPaper()" class="inbox-action-btn bg-stone-700/90 text-stone-200 font-bold font-mono rounded-sm">
+                            <i class="fa-solid fa-trash-can"></i> KAST
+                        </button>
+                        <button type="button" onclick="sendTopToBack()" class="inbox-action-btn bg-stone-700/90 text-stone-200 font-bold font-mono rounded-sm">
+                            <i class="fa-solid fa-layer-group"></i> BAK
+                        </button>
+                        <button type="button" onclick="refreshIncomingFaxes()" class="inbox-action-btn bg-stone-700/90 text-stone-200 font-bold font-mono rounded-sm" title="Oppdater">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                        </button>
+                        <span id="stackPositionLabel" class="stack-position-label ml-auto bg-stone-900/85 text-amber-300 font-bold font-mono rounded-sm">0 ARK</span>
+                    </div>
+                    <div id="paperStackContainer" class="flex-grow relative min-h-[200px]"></div>
+                    <div id="stackNavBar" class="hidden mt-2 flex items-center justify-center gap-2 shrink-0">
+                        <button type="button" id="btnStackNewer" onclick="browseStackNewer()" class="btn-retro px-3 py-2 text-[10px] font-bold">
+                            <i class="fa-solid fa-chevron-up"></i>
+                        </button>
+                        <span id="stackBrowseHint" class="text-[10px] font-mono text-stone-700">—</span>
+                        <button type="button" id="btnStackOlder" onclick="browseStackOlder()" class="btn-retro px-3 py-2 text-[10px] font-bold">
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+                <footer class="app-screen-footer">
+                    <button type="button" onclick="setAppScreen('kartotek')" class="btn-retro w-full py-2 text-xs font-bold">TILBAKE TIL KATALOG</button>
+                </footer>
+            </section>
+        </main>
+    </div>
+
+    <!-- Fullskjerm fax-animasjon (mottak / sending) -->
+    <div id="faxMachineOverlay" class="hidden fixed inset-0 z-[60] flex flex-col bg-stone-900/95 overflow-hidden fax-machine-overlay">
+        <div class="fax-overlay-status w-full max-w-3xl flex justify-between items-center px-2 mb-2 shrink-0 pt-safe">
+            <span id="faxMachineModeLabel" class="text-[10px] font-mono text-stone-300 uppercase tracking-wider">MOTTAR FAX</span>
+            <div class="flex items-center gap-2">
+                <div id="faxMachineLed" class="fax-machine-led"></div>
+                <span id="faxMachineStatus" class="text-[10px] font-mono text-amber-400 font-bold">STANDBY</span>
             </div>
         </div>
+        <div id="faxMachineReceiveLayout" class="fax-machine-unit w-full max-w-lg flex flex-col items-center justify-end flex-grow min-h-0">
+            <div class="fax-machine-chassis w-full">
+                <div class="fax-machine-face relative px-4 py-3 bg-gradient-to-b from-[#4a443c] to-[#353028] border-4 border-[#1a1814]">
+                    <div class="flex items-center justify-center gap-3 mb-2">
+                        <i class="fa-solid fa-fax text-2xl text-stone-300 opacity-80"></i>
+                        <span class="text-xs font-mono text-stone-200 uppercase">PANASONIC FX-99</span>
+                    </div>
+                    <div class="fax-output-slot relative mx-auto w-[88%] h-3 bg-black border-2 border-[#1a1814] shadow-inner rounded-sm overflow-visible">
+                        <div id="faxScanLine" class="fax-scan-line hidden"></div>
+                    </div>
+                </div>
+            </div>
+            <div id="faxEmergingTray" class="fax-emerging-tray w-[88%] max-w-md relative -mt-1 min-h-[240px] flex justify-center overflow-hidden">
+                <div id="faxEmergingPaper" class="fax-emerging-paper hidden">
+                    <div id="faxEmergingHeader" class="border-b border-dashed border-stone-300 pb-2 mb-2 text-[10px] text-stone-500 flex justify-between font-mono"></div>
+                    <div id="faxEmergingBody" class="text-xs uppercase leading-relaxed text-left tracking-wide fax-emerging-body" style="font-family: 'Courier Prime', monospace;"></div>
+                    <div class="mt-3 pt-2 border-t border-dotted border-stone-300 text-[9px] text-stone-400 font-mono">FX-99 SECURE RX LINE</div>
+                </div>
+            </div>
+        </div>
+        <div id="faxMachineSendLayout" class="hidden jitfl-send-fullscreen flex-grow min-h-0 w-full">
+            <div id="jitflSendScene" class="jitfl-scene">
+                <div class="jitfl-room-bg" aria-hidden="true"></div>
+                <div id="faxSendSheet" class="jitfl-paper-sheet phase-pause">
+                    <div class="jitfl-paper-header">
+                        <span class="jitfl-paper-title">TELEFAX TRANSMISSION</span>
+                        <span id="jitflPaperDest" class="jitfl-paper-dest">TIL: —</span>
+                    </div>
+                    <div id="faxSendMessageBody" class="jitfl-paper-message"></div>
+                    <div class="jitfl-paper-footer">SIERRA PROTOCOL FX-99 // OPTICAL SCAN</div>
+                </div>
+                <div class="jitfl-machine-wrap">
+                    <div id="jitflMachine" class="jitfl-machine">
+                        <div class="jitfl-machine-bezel bevel-out">
+                            <div class="jitfl-lcd lcd-display scanlines">
+                                <span id="jitflLcdText" class="jitfl-lcd-text">STANDBY</span>
+                            </div>
+                            <div class="jitfl-leds">
+                                <span id="jitflLedPower" class="jitfl-led jitfl-led--green"></span>
+                                <span id="jitflLedTx" class="jitfl-led jitfl-led--red"></span>
+                            </div>
+                            <div class="jitfl-btn-deco jitfl-btn-deco--red" aria-hidden="true">SEND</div>
+                        </div>
+                        <div class="jitfl-chassis-body bevel-out">
+                            <div class="jitfl-brand">TELEFAX MFG. CO. // MODEL FX-99</div>
+                            <div id="jitflIntakeSlot" class="jitfl-intake-slot">
+                                <div id="jitflIntakeGlow" class="jitfl-intake-glow"></div>
+                                <div class="jitfl-rollers" id="jitflRollers" aria-hidden="true">
+                                    <span></span><span></span><span></span>
+                                </div>
+                            </div>
+                            <div class="jitfl-speaker-grille" aria-hidden="true"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <p id="faxMachineHint" class="text-[10px] font-mono text-amber-500/90 mt-2 mb-2 text-center shrink-0 max-w-xl pb-safe">KOBLE TIL LINJE...</p>
     </div>
 
     <div id="customAlert" class="hidden fixed inset-0 z-[100] flex justify-center items-center p-4 bg-black/60">
