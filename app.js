@@ -87,8 +87,77 @@ async function bootstrapAuth() {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm').addEventListener('submit', handleLoginSubmit);
+    registerServiceWorker();
     bootstrapAuth();
 });
+
+// --- WEB PUSH (forutsetter PWA fra hjemskjerm) ---
+
+function isStandalonePwa() {
+    return window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+}
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    const output = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) {
+        output[i] = raw.charCodeAt(i);
+    }
+    return output;
+}
+
+async function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return null;
+    try {
+        return await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    } catch (e) {
+        console.warn('Service worker registration failed', e);
+        return null;
+    }
+}
+
+async function setupPushNotifications() {
+    if (!isStandalonePwa()) return;
+    const vapidPublic = window.FAXCHAT_PUSH?.vapidPublicKey;
+    if (!vapidPublic) return;
+    if (!('PushManager' in window) || !('Notification' in window)) return;
+
+    await registerServiceWorker();
+    const reg = await navigator.serviceWorker.ready;
+
+    let permission = Notification.permission;
+    if (permission === 'default') {
+        permission = await Notification.requestPermission();
+    }
+    if (permission !== 'granted') return;
+
+    const { data: { user } } = await getSupabase().auth.getUser();
+    if (!user) return;
+
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+        sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublic)
+        });
+    }
+
+    const { error } = await getSupabase().from('push_subscriptions').upsert(
+        {
+            user_id: user.id,
+            endpoint: sub.endpoint,
+            subscription: sub.toJSON()
+        },
+        { onConflict: 'user_id,endpoint' }
+    );
+
+    if (error) {
+        console.warn('Kunne ikke lagre push-abonnement:', error.message);
+    }
+}
 
 // --- SOUND SYNTHESIS ENGINE (Synthesized via Web Audio API) ---
 let audioCtx = null;
@@ -686,6 +755,7 @@ async function initFaxApp() {
     renderKartotek();
     setAppScreen('kartotek', { skipFaxRefresh: true });
     await refreshIncomingFaxes({ animateNew: true });
+    await setupPushNotifications();
 }
 
 async function loadDirectory() {

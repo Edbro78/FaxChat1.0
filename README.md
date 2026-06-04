@@ -21,3 +21,6 @@ For å sende fax til Per: bla i katalogen, se at han har **NR 3**, tast `3` på 
 
 ## Deploy
 Push til GitHub → Vercel. Ingen miljøvariabler nødvendig.
+
+## Pushvarsler (PWA hjemskjerm)
+Se **[PUSH_SETUP.md](PUSH_SETUP.md)** — Supabase-tabell, Edge Function, VAPID-secrets og Database Webhook.
