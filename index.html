@@ -178,10 +178,10 @@
                     <div class="flex justify-between items-center w-full gap-2">
                         <h2 class="app-screen-title !mb-0"><i class="fa-solid fa-fax"></i> SEND</h2>
                         <div class="flex items-center gap-2 text-[10px] font-mono text-stone-700">
-                            <span>PAPIR <strong id="paperPercentText">3/3</strong></span>
-                            <div class="flex gap-0.5 w-12" id="paperIndicatorsContainer"></div>
-                            <button type="button" onclick="reloadPaper()" class="btn-hardware-red px-2 py-1 text-[9px] font-bold" title="Legg inn papir">
-                                <i class="fa-solid fa-rotate"></i>
+                            <span>PAPIR <strong id="paperPercentText">6/6</strong></span>
+                            <div class="paper-indicators" id="paperIndicatorsContainer"></div>
+                            <button type="button" onclick="reloadPaper()" class="btn-reload-paper btn-hardware-red" title="Fyll på papir">
+                                <i class="fa-solid fa-rotate"></i> PAPIR
                             </button>
                         </div>
                     </div>
@@ -230,7 +230,7 @@
                         <button type="button" onclick="sendTopToBack()" class="inbox-action-btn bg-stone-700/90 text-stone-200 font-bold font-mono rounded-sm">
                             <i class="fa-solid fa-layer-group"></i> BAK
                         </button>
-                        <button type="button" onclick="refreshIncomingFaxes()" class="inbox-action-btn bg-stone-700/90 text-stone-200 font-bold font-mono rounded-sm" title="Oppdater">
+                        <button type="button" onclick="refreshIncomingFaxes({ printPending: true })" class="inbox-action-btn bg-stone-700/90 text-stone-200 font-bold font-mono rounded-sm" title="Oppdater">
                             <i class="fa-solid fa-arrows-rotate"></i>
                         </button>
                         <span id="stackPositionLabel" class="stack-position-label ml-auto bg-stone-900/85 text-amber-300 font-bold font-mono rounded-sm">0 ARK</span>
@@ -255,30 +255,30 @@
 
     <!-- Fullskjerm fax-animasjon (mottak / sending) -->
     <div id="faxMachineOverlay" class="hidden fixed inset-0 z-[60] flex flex-col bg-stone-900/95 overflow-hidden fax-machine-overlay">
-        <div class="fax-overlay-status w-full max-w-3xl flex justify-between items-center px-2 mb-2 shrink-0 pt-safe">
+        <div class="fax-overlay-status flex justify-between items-center px-3 mb-1 shrink-0 pt-safe">
             <span id="faxMachineModeLabel" class="text-[10px] font-mono text-stone-300 uppercase tracking-wider">MOTTAR FAX</span>
             <div class="flex items-center gap-2">
                 <div id="faxMachineLed" class="fax-machine-led"></div>
                 <span id="faxMachineStatus" class="text-[10px] font-mono text-amber-400 font-bold">STANDBY</span>
             </div>
         </div>
-        <div id="faxMachineReceiveLayout" class="fax-machine-unit w-full max-w-lg flex flex-col items-center justify-end flex-grow min-h-0">
-            <div class="fax-machine-chassis w-full">
-                <div class="fax-machine-face relative px-4 py-3 bg-gradient-to-b from-[#4a443c] to-[#353028] border-4 border-[#1a1814]">
-                    <div class="flex items-center justify-center gap-3 mb-2">
-                        <i class="fa-solid fa-fax text-2xl text-stone-300 opacity-80"></i>
-                        <span class="text-xs font-mono text-stone-200 uppercase">PANASONIC FX-99</span>
+        <div id="faxMachineReceiveLayout" class="fax-machine-unit fax-receive-scene flex flex-col items-center justify-end flex-grow min-h-0">
+            <div class="fax-machine-chassis w-full shrink-0">
+                <div class="fax-machine-face relative px-3 py-2 bg-gradient-to-b from-[#4a443c] to-[#353028] border-4 border-[#1a1814]">
+                    <div class="flex items-center justify-center gap-2 mb-1">
+                        <i class="fa-solid fa-fax text-xl text-stone-300 opacity-80"></i>
+                        <span class="text-[10px] font-mono text-stone-200 uppercase">PANASONIC FX-99</span>
                     </div>
-                    <div class="fax-output-slot relative mx-auto w-[88%] h-3 bg-black border-2 border-[#1a1814] shadow-inner rounded-sm overflow-visible">
+                    <div class="fax-output-slot relative mx-auto w-[92%] h-2.5 bg-black border-2 border-[#1a1814] shadow-inner rounded-sm overflow-hidden">
                         <div id="faxScanLine" class="fax-scan-line hidden"></div>
                     </div>
                 </div>
             </div>
-            <div id="faxEmergingTray" class="fax-emerging-tray w-[88%] max-w-md relative -mt-1 min-h-[240px] flex justify-center overflow-hidden">
+            <div id="faxEmergingTray" class="fax-emerging-tray w-[92%] relative -mt-0.5 flex-1 min-h-0 flex justify-center">
                 <div id="faxEmergingPaper" class="fax-emerging-paper hidden">
-                    <div id="faxEmergingHeader" class="border-b border-dashed border-stone-300 pb-2 mb-2 text-[10px] text-stone-500 flex justify-between font-mono"></div>
-                    <div id="faxEmergingBody" class="text-xs uppercase leading-relaxed text-left tracking-wide fax-emerging-body" style="font-family: 'Courier Prime', monospace;"></div>
-                    <div class="mt-3 pt-2 border-t border-dotted border-stone-300 text-[9px] text-stone-400 font-mono">FX-99 SECURE RX LINE</div>
+                    <div id="faxEmergingCover" class="fax-cover-sheet fax-cover-sheet--compact"></div>
+                    <div id="faxEmergingBody" class="text-[10px] uppercase leading-snug text-left tracking-wide fax-emerging-body overflow-hidden" style="font-family: 'Courier Prime', monospace;"></div>
+                    <div class="mt-2 pt-1 border-t border-dotted border-stone-300 text-[8px] text-stone-400 font-mono">FX-99 SECURE RX LINE</div>
                 </div>
             </div>
         </div>
@@ -319,14 +319,20 @@
                 </div>
             </div>
         </div>
-        <p id="faxMachineHint" class="text-[10px] font-mono text-amber-500/90 mt-2 mb-2 text-center shrink-0 max-w-xl pb-safe">KOBLE TIL LINJE...</p>
+        <p id="faxMachineHint" class="text-[10px] font-mono text-amber-500/90 mt-1 mb-1 text-center shrink-0 px-3 pb-safe">KOBLE TIL LINJE...</p>
     </div>
 
     <div id="customAlert" class="hidden fixed inset-0 z-[100] flex justify-center items-center p-4 bg-black/60">
         <div class="lcd-display scanlines max-w-sm w-full p-5 border-4 border-[#9e9584] text-center flex flex-col gap-4">
             <div id="alertTitle" class="text-xl font-bold tracking-wider">ALERT!</div>
             <p id="alertMsg" class="text-xs opacity-95 font-mono leading-relaxed text-justify">MESSAGE DESCRIPTION GOES HERE...</p>
-            <button type="button" onclick="closeAlert()" class="btn-retro mx-auto px-5 py-2 text-stone-900 text-xs font-bold font-mono cursor-pointer">ACKNOWLEDGE RECEIPT</button>
+            <div id="alertActionsSingle">
+                <button type="button" onclick="closeAlert()" class="btn-retro mx-auto px-5 py-2 text-stone-900 text-xs font-bold font-mono cursor-pointer">OK</button>
+            </div>
+            <div id="alertActionsConfirm" class="hidden flex gap-3 justify-center flex-wrap">
+                <button type="button" onclick="confirmAlertYes()" class="btn-hardware-red px-5 py-2 text-xs font-bold font-mono cursor-pointer">JA</button>
+                <button type="button" onclick="confirmAlertNo()" class="btn-retro px-5 py-2 text-stone-900 text-xs font-bold font-mono cursor-pointer">NEI</button>
+            </div>
         </div>
     </div>
 

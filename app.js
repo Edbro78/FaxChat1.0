@@ -369,6 +369,8 @@ function beep(freq, duration, startTime) {
 }
 
 const FAX_CYCLE_MS = 8000;
+const FAX_RECEIVE_MS = 6000;
+const PAPER_MAX = 6;
 const FAX_SEND_PAUSE_MS = 2600;
 const FAX_SEND_FEED_MS = 5400;
 let isFaxMachineBusy = false;
@@ -473,24 +475,32 @@ function playFaxMachineCycle(durationMs = FAX_CYCLE_MS) {
     setTimeout(() => clearInterval(rollerTimer), durationMs);
 }
 
-function seenFaxStorageKey() {
-    return `faxchat_seen_${currentProfile?.station_id || 'unknown'}`;
+function printedFaxStorageKey() {
+    return `faxchat_printed_${currentProfile?.station_id || 'unknown'}`;
 }
 
-function loadSeenFaxIds() {
+function loadPrintedFaxIds() {
+    const key = printedFaxStorageKey();
+    const legacyKey = `faxchat_seen_${currentProfile?.station_id || 'unknown'}`;
     try {
-        const raw = sessionStorage.getItem(seenFaxStorageKey());
-        return new Set(raw ? JSON.parse(raw) : []);
+        const ids = new Set();
+        const fromLocal = localStorage.getItem(key);
+        if (fromLocal) JSON.parse(fromLocal).forEach((id) => ids.add(id));
+        const fromLegacyLocal = localStorage.getItem(legacyKey);
+        if (fromLegacyLocal) JSON.parse(fromLegacyLocal).forEach((id) => ids.add(id));
+        const fromLegacySession = sessionStorage.getItem(legacyKey);
+        if (fromLegacySession) JSON.parse(fromLegacySession).forEach((id) => ids.add(id));
+        return ids;
     } catch (_) {
         return new Set();
     }
 }
 
-function markFaxSeen(id) {
-    const seen = loadSeenFaxIds();
-    seen.add(id);
+function markFaxPrinted(id) {
+    const printed = loadPrintedFaxIds();
+    printed.add(id);
     try {
-        sessionStorage.setItem(seenFaxStorageKey(), JSON.stringify([...seen]));
+        localStorage.setItem(printedFaxStorageKey(), JSON.stringify([...printed]));
     } catch (_) { /* ignore quota */ }
 }
 
@@ -587,43 +597,116 @@ function hideFaxMachineOverlay() {
     resetFaxMachineDom();
 }
 
-function buildFaxHeaderHtml(fax) {
+function getFaxSenderMeta(fax) {
     const senderProfile = directoryProfiles.find((p) => p.id === fax.sender_user_id);
-    const senderLabel = senderProfile
-        ? `${senderProfile.fax_label} // ${senderProfile.name.toUpperCase()}`
-        : 'UKJENT AVSENDER';
+    const date = new Date(fax.created_at);
+    const day = String(date.getDate()).padStart(2, '0');
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAI', 'JUN', 'JUL', 'AUG', 'SEP', 'OKT', 'NOV', 'DES'];
+    const hour = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+
+    return {
+        name: senderProfile?.name?.toUpperCase() || 'UKJENT AVSENDER',
+        stationId: senderProfile?.station_id || '??',
+        faxLabel: senderProfile?.fax_label || '—',
+        dateStr: `${day}. ${months[date.getMonth()]} ${date.getFullYear()}`,
+        timeStr: `${hour}:${min}`
+    };
+}
+
+function buildPaperRemainingMarkup(remaining) {
+    let leds = '';
+    for (let i = 0; i < PAPER_MAX; i++) {
+        leds += `<span class="fax-cover-paper-led${i < remaining ? ' is-lit' : ''}"></span>`;
+    }
     return `
-        <span>NR_${senderProfile?.station_id || '??'} // ${escapeHtml(senderLabel)}</span>
-        <span>DATE: ${formatFaxDate(fax.created_at)}</span>
+        <div class="fax-cover-paper">
+            <span class="fax-cover-label">PAPIR IGJEN</span>
+            <div class="fax-cover-paper-row">
+                <div class="fax-cover-paper-leds" aria-label="${remaining} av ${PAPER_MAX} ark">${leds}</div>
+                <span class="fax-cover-paper-count">${remaining}/${PAPER_MAX}</span>
+            </div>
+        </div>
+    `;
+}
+
+function buildFaxCoverHtml(fax, paperRemaining = null) {
+    const meta = getFaxSenderMeta(fax);
+    const paperBlock = paperRemaining !== null ? buildPaperRemainingMarkup(paperRemaining) : '';
+    return `
+        <div class="fax-cover-kicker">INNKOMMENDE FAX</div>
+        <div class="fax-cover-heading">FORSIDE</div>
+        <div class="fax-cover-grid">
+            <div class="fax-cover-row">
+                <span class="fax-cover-label">AVSENDER</span>
+                <span class="fax-cover-value fax-cover-value--name">${escapeHtml(meta.name)}</span>
+            </div>
+            <div class="fax-cover-row">
+                <span class="fax-cover-label">FAX-NR</span>
+                <span class="fax-cover-value">${escapeHtml(meta.stationId)}</span>
+            </div>
+            <div class="fax-cover-row">
+                <span class="fax-cover-label">DATO</span>
+                <span class="fax-cover-value">${escapeHtml(meta.dateStr)}</span>
+            </div>
+            <div class="fax-cover-row">
+                <span class="fax-cover-label">KLOKKESLETT</span>
+                <span class="fax-cover-value fax-cover-value--time">${escapeHtml(meta.timeStr)}</span>
+            </div>
+        </div>
+        ${paperBlock}
     `;
 }
 
 async function runFaxReceiveAnimation(fax) {
+    if (paperCapacity <= 0) {
+        const refilled = await promptRefillPaper();
+        if (!refilled) return false;
+    }
+
+    paperCapacity--;
+    const remaining = paperCapacity;
+    updatePaperGauge();
+    updateSendButtonState();
+
     const senderProfile = directoryProfiles.find((p) => p.id === fax.sender_user_id);
     const senderName = senderProfile?.name || 'UKJENT';
 
     showFaxMachineOverlay('receive', 'MOTTAR...', `INNKOMMENDE FRA ${senderName.toUpperCase()} — SKRIVER UT ARK...`);
-    playFaxMachineCycle(FAX_CYCLE_MS);
+    playFaxMachineCycle(FAX_RECEIVE_MS);
 
     const paper = document.getElementById('faxEmergingPaper');
     const body = document.getElementById('faxEmergingBody');
-    document.getElementById('faxEmergingHeader').innerHTML = buildFaxHeaderHtml(fax);
+    const cover = document.getElementById('faxEmergingCover');
+    const scanLine = document.getElementById('faxScanLine');
+    if (cover) cover.innerHTML = buildFaxCoverHtml(fax, remaining);
     body.textContent = fax.content;
     body.classList.add('thermal-print');
+
+    const animMs = `${FAX_RECEIVE_MS}ms`;
+    if (scanLine) scanLine.style.animationDuration = animMs;
+    paper.style.animationDuration = animMs;
 
     paper.classList.remove('hidden');
     void paper.offsetWidth;
     paper.classList.add('printing');
 
     await Promise.all([
-        animateThermalReveal(body, FAX_CYCLE_MS),
-        delay(FAX_CYCLE_MS)
+        animateThermalReveal(body, FAX_RECEIVE_MS),
+        delay(FAX_RECEIVE_MS)
     ]);
 
     body.classList.remove('thermal-print');
+    if (scanLine) scanLine.style.animationDuration = '';
+    paper.style.animationDuration = '';
     hideFaxMachineOverlay();
     clearFaxSoundCleanup();
-    markFaxSeen(fax.id);
+    markFaxPrinted(fax.id);
+
+    if (paperCapacity <= 0) {
+        await promptRefillPaper();
+    }
+    return true;
 }
 
 async function runFaxSendAnimation(text, destProfile) {
@@ -674,45 +757,38 @@ async function runFaxSendAnimation(text, destProfile) {
     clearFaxSoundCleanup();
 }
 
-async function processNewIncomingFaxes(fetchedList) {
-    const seen = loadSeenFaxIds();
-    const alreadyQueued = new Set(incomingFaxes.map((f) => f.id));
-    const toPrint = fetchedList
-        .filter((f) => !seen.has(f.id) && !alreadyQueued)
+function syncIncomingFromFetched(fetchedList) {
+    const printed = loadPrintedFaxIds();
+    pendingPrintQueue = fetchedList
+        .filter((f) => !printed.has(f.id))
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-    if (toPrint.length === 0) {
-        incomingFaxes = fetchedList;
-        if (stackViewIndex >= incomingFaxes.length) {
-            stackViewIndex = Math.max(0, incomingFaxes.length - 1);
-        }
-        renderFaxes();
-        return;
-    }
-
-    const pendingIds = new Set(toPrint.map((f) => f.id));
-    incomingFaxes = fetchedList.filter((f) => !pendingIds.has(f.id));
+    incomingFaxes = fetchedList.filter((f) => printed.has(f.id));
     if (stackViewIndex >= incomingFaxes.length) {
         stackViewIndex = Math.max(0, incomingFaxes.length - 1);
     }
     renderFaxes();
+}
 
-    if (currentAppScreen !== 'inbox') {
-        setAppScreen('inbox', { skipFaxRefresh: true });
-    }
+async function printPendingIncomingFaxes() {
+    if (isFaxMachineBusy) return;
+
+    const printed = loadPrintedFaxIds();
+    const toPrint = pendingPrintQueue.filter((f) => !printed.has(f.id));
+    pendingPrintQueue = [];
+    updateInboxBadge();
+
+    if (toPrint.length === 0) return;
 
     isFaxMachineBusy = true;
     try {
         for (const fax of toPrint) {
-            await runFaxReceiveAnimation(fax);
+            const ok = await runFaxReceiveAnimation(fax);
+            if (!ok) break;
             incomingFaxes = [fax, ...incomingFaxes];
             stackViewIndex = 0;
             renderFaxes();
             playRetroSound('key');
         }
-        incomingFaxes = fetchedList;
-        stackViewIndex = 0;
-        renderFaxes();
     } finally {
         isFaxMachineBusy = false;
     }
@@ -727,10 +803,11 @@ const DTMF_FREQS = {
 
 let directoryProfiles = [];
 let incomingFaxes = [];
+let pendingPrintQueue = [];
 let dialedBuffer = "";
 let activeRecipientStation = null;
 let currentAppScreen = 'kartotek';
-let paperCapacity = 3;
+let paperCapacity = PAPER_MAX;
 
 const APP_SCREENS = ['kartotek', 'dialer', 'compose', 'send', 'inbox'];
 const NAV_SCREENS = ['kartotek', 'dialer', 'compose', 'send'];
@@ -746,7 +823,7 @@ async function initFaxApp() {
 
     dialedBuffer = "";
     activeRecipientStation = null;
-    paperCapacity = 3;
+    paperCapacity = PAPER_MAX;
     stackViewIndex = 0;
 
     await loadDirectory();
@@ -754,8 +831,18 @@ async function initFaxApp() {
     updatePaperGauge();
     renderKartotek();
     setAppScreen('kartotek', { skipFaxRefresh: true });
-    await refreshIncomingFaxes({ animateNew: true });
+    await refreshIncomingFaxes();
     await setupPushNotifications();
+
+    if (!initFaxApp.visibilityHook) {
+        document.addEventListener('visibilitychange', onAppVisibilityChange);
+        initFaxApp.visibilityHook = true;
+    }
+}
+
+function onAppVisibilityChange() {
+    if (document.visibilityState !== 'visible' || !currentProfile || isFaxMachineBusy) return;
+    refreshIncomingFaxes();
 }
 
 async function loadDirectory() {
@@ -791,7 +878,7 @@ function updateSendButtonState() {
     }
 
     if (paperCapacity <= 0) {
-        setSendHints('Tomt for papir — legg inn mer papir på SEND-skjermen.');
+        setSendHints('Tomt for papir — trykk PAPIR-knappen for å fylle på.');
         btn.disabled = true;
         btn.classList.add('opacity-40');
         return;
@@ -829,7 +916,6 @@ function resolveDialMatch(buffer) {
 }
 
 async function refreshIncomingFaxes(options = {}) {
-    const animateNew = options.animateNew !== false && !isFaxMachineBusy;
     const sb = getSupabase();
     const station = currentProfile.station_id;
     const { data, error } = await sb
@@ -842,19 +928,15 @@ async function refreshIncomingFaxes(options = {}) {
     if (error) {
         showMsgBox('DATABASE FEIL', error.message);
         incomingFaxes = [];
+        pendingPrintQueue = [];
         renderFaxes();
         return;
     }
 
-    const fetched = data || [];
-    if (animateNew) {
-        await processNewIncomingFaxes(fetched);
-    } else {
-        incomingFaxes = fetched;
-        if (stackViewIndex >= incomingFaxes.length) {
-            stackViewIndex = Math.max(0, incomingFaxes.length - 1);
-        }
-        renderFaxes();
+    syncIncomingFromFetched(data || []);
+
+    if (options.printPending && pendingPrintQueue.length > 0 && !isFaxMachineBusy) {
+        await printPendingIncomingFaxes();
     }
 }
 
@@ -933,7 +1015,7 @@ function renderKartotek() {
                 <div class="kartotek-card-name">${escapeHtml(profile.name)}</div>
                 <div class="kartotek-card-desc">${escapeHtml(profile.description)}</div>
             </div>
-            <div class="kartotek-card-station">NR ${escapeHtml(profile.station_id)}</div>
+            <div class="kartotek-card-station">Faxnummer ${escapeHtml(profile.station_id)}</div>
         `;
 
         card.onclick = () => {
@@ -1037,41 +1119,85 @@ function showPhoneBellAlert() {
     showMsgBox("ANALOG BELL", "SENDING LOUD RINGER VOLTAGE DETECT INTO THE TELEPHONE EXCHANGE LINE BOARD.");
 }
 
-function reloadPaper() {
-    if (paperCapacity === 3) {
-        showMsgBox("PAPER TRUNK FULL", "DET ANALOGE PAPIRMAGASINET ER FULLT. DU HAR ALLEREDE 3 ARK TILGJENGELIG.");
+function refillPaperToFull() {
+    playRetroSound('reload');
+    paperCapacity = PAPER_MAX;
+    updatePaperGauge();
+    updateSendButtonState();
+}
+
+let confirmAlertYesCallback = null;
+let confirmAlertNoCallback = null;
+
+function showConfirmBox(title, text, onYes, onNo) {
+    document.getElementById('alertTitle').innerText = title;
+    document.getElementById('alertMsg').innerText = text;
+    document.getElementById('alertActionsSingle').classList.add('hidden');
+    document.getElementById('alertActionsConfirm').classList.remove('hidden');
+    confirmAlertYesCallback = onYes;
+    confirmAlertNoCallback = onNo || null;
+    document.getElementById('customAlert').classList.remove('hidden');
+    playRetroSound('dtmf', 697, 1209);
+}
+
+function promptRefillPaper() {
+    return new Promise((resolve) => {
+        showConfirmBox(
+            'TOMT FOR PAPIR',
+            'Vil du fylle på 6 stk nye ark i Faxmaskinen?',
+            () => {
+                refillPaperToFull();
+                resolve(true);
+            },
+            () => resolve(false)
+        );
+    });
+}
+
+async function reloadPaper() {
+    if (paperCapacity >= PAPER_MAX) {
+        showMsgBox('PAPIRMAGASIN FULLT', `Du har allerede ${PAPER_MAX} ark i maskinen.`);
         return;
     }
-    playRetroSound('reload');
-    paperCapacity = 3;
-    updatePaperGauge();
-    showMsgBox("PAPER RECHARGED", "NY TERMISK RULL MATET INN I SKRIVERHODET. SYSTEMKLAR FOR TRANSMISJON.");
+    if (paperCapacity > 0) {
+        showMsgBox('ARK IGJEN', `Du har ${paperCapacity} ark igjen. Fyll på når magasinet er tomt.`);
+        return;
+    }
+    await promptRefillPaper();
 }
 
 function updatePaperGauge() {
-    document.getElementById("paperPercentText").innerText = `${paperCapacity}/3`;
-    const container = document.getElementById("paperIndicatorsContainer");
-    container.innerHTML = "";
+    document.getElementById('paperPercentText').innerText = `${paperCapacity}/${PAPER_MAX}`;
+    const container = document.getElementById('paperIndicatorsContainer');
+    container.innerHTML = '';
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < PAPER_MAX; i++) {
         const isLit = i < paperCapacity;
-        const led = document.createElement("div");
-        led.className = `flex-1 h-2.5 border border-stone-800 ${isLit ? 'bg-green-500 shadow-[0_0_5px_#22c55e]' : 'bg-stone-700'}`;
+        const led = document.createElement('div');
+        led.className = `paper-led ${isLit ? 'bg-green-500 shadow-[0_0_5px_#22c55e]' : 'bg-stone-700'}`;
         container.appendChild(led);
     }
 }
 
 window.setAppScreen = setAppScreen;
+window.refreshIncomingFaxes = refreshIncomingFaxes;
+window.confirmAlertYes = confirmAlertYes;
+window.confirmAlertNo = confirmAlertNo;
+window.closeAlert = closeAlert;
+window.reloadPaper = reloadPaper;
 
 function updateInboxBadge() {
     const badge = document.getElementById('inboxBadge');
+    const btn = document.getElementById('btnOpenInbox');
     if (!badge) return;
-    const count = incomingFaxes.length;
+    const count = pendingPrintQueue.length;
     if (count > 0) {
         badge.innerText = count > 9 ? '9+' : String(count);
         badge.classList.remove('hidden');
+        btn?.classList.add('app-inbox-btn--alert');
     } else {
         badge.classList.add('hidden');
+        btn?.classList.remove('app-inbox-btn--alert');
     }
 }
 
@@ -1093,22 +1219,13 @@ function setAppScreen(screen, options = {}) {
     });
 
     if (screen === 'inbox' && !options.skipFaxRefresh) {
-        refreshIncomingFaxes({ animateNew: !isFaxMachineBusy });
+        refreshIncomingFaxes({ printPending: true });
     }
 
     if (screen === 'compose' || screen === 'send' || screen === 'dialer') {
         updateUIVariables();
     }
 
-}
-
-function formatFaxDate(iso) {
-    const date = new Date(iso);
-    const day = String(date.getDate()).padStart(2, '0');
-    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-    const hour = String(date.getHours()).padStart(2, '0');
-    const min = String(date.getMinutes()).padStart(2, '0');
-    return `${day}-${months[date.getMonth()]}-${date.getFullYear()} ${hour}:${min}`;
 }
 
 function escapeHtml(text) {
@@ -1136,10 +1253,6 @@ function renderFaxes() {
     }
 
     thread.forEach((msg, idx) => {
-        const senderProfile = directoryProfiles.find(p => p.id === msg.sender_user_id);
-        const senderLabel = senderProfile
-            ? `${senderProfile.fax_label} // ${senderProfile.name.toUpperCase()}`
-            : 'UKJENT AVSENDER';
         const seedAngle = (msg.content.charCodeAt(0) % 7) - 3;
         const seedX = (msg.content.charCodeAt(1) % 15) - 7;
         const layer = idx - stackViewIndex;
@@ -1164,11 +1277,8 @@ function renderFaxes() {
 
         const pilePos = idx + 1;
         paper.innerHTML = `
-            <div class="border-b border-dashed border-stone-300 pb-2 mb-3 text-[10px] text-stone-500 flex justify-between">
-                <span>NR_${senderProfile?.station_id || '??'} // ${escapeHtml(senderLabel)}</span>
-                <span>DATE: ${formatFaxDate(msg.created_at)}</span>
-            </div>
-            <div class="text-xs uppercase leading-relaxed text-left flex-grow break-words tracking-wide" style="font-family: 'Courier Prime', monospace;">
+            <div class="fax-cover-sheet">${buildFaxCoverHtml(msg)}</div>
+            <div class="fax-sheet-body text-xs uppercase leading-relaxed text-left flex-grow break-words tracking-wide" style="font-family: 'Courier Prime', monospace;">
                 ${escapeHtml(msg.content)}
             </div>
             <div class="mt-4 pt-2 border-t border-dotted border-stone-300 flex justify-between items-center text-[9px] text-stone-400">
@@ -1249,8 +1359,8 @@ async function startTransmission() {
     }
 
     if (paperCapacity <= 0) {
-        showMsgBox("OUT OF THERMAL PAPER", "FEIL: MASKINEN GIKK AKKURAT TOM FOR PAPIR! VENNLIGST KLIKK 'LEGG INN MER PAPIR' KNAPPEN FOR EN NY RULL.");
-        return;
+        const refilled = await promptRefillPaper();
+        if (!refilled) return;
     }
 
     const inputEl = document.getElementById("faxContentInput");
@@ -1295,9 +1405,14 @@ async function startTransmission() {
 
         paperCapacity--;
         updatePaperGauge();
+
+        if (paperCapacity <= 0) {
+            await promptRefillPaper();
+        }
+
         showMsgBox('SENDT', `FAX OVERFØRT TIL NR ${destProfile.station_id} (${destProfile.name}).`);
         setAppScreen('compose', { skipFaxRefresh: true });
-        await refreshIncomingFaxes({ animateNew: false });
+        await refreshIncomingFaxes();
     } finally {
         isFaxMachineBusy = false;
         updateSendButtonState();
@@ -1305,13 +1420,43 @@ async function startTransmission() {
 }
 
 function showMsgBox(title, text) {
-    document.getElementById("alertTitle").innerText = title;
-    document.getElementById("alertMsg").innerText = text;
-    document.getElementById("customAlert").classList.remove("hidden");
+    document.getElementById('alertTitle').innerText = title;
+    document.getElementById('alertMsg').innerText = text;
+    document.getElementById('alertActionsSingle').classList.remove('hidden');
+    document.getElementById('alertActionsConfirm').classList.add('hidden');
+    confirmAlertYesCallback = null;
+    confirmAlertNoCallback = null;
+    document.getElementById('customAlert').classList.remove('hidden');
     playRetroSound('dtmf', 697, 1209);
 }
 
+function confirmAlertYes() {
+    const cb = confirmAlertYesCallback;
+    document.getElementById('customAlert').classList.add('hidden');
+    document.getElementById('alertActionsSingle').classList.remove('hidden');
+    document.getElementById('alertActionsConfirm').classList.add('hidden');
+    confirmAlertYesCallback = null;
+    confirmAlertNoCallback = null;
+    playRetroSound('key');
+    if (cb) cb();
+}
+
+function confirmAlertNo() {
+    const cb = confirmAlertNoCallback;
+    document.getElementById('customAlert').classList.add('hidden');
+    document.getElementById('alertActionsSingle').classList.remove('hidden');
+    document.getElementById('alertActionsConfirm').classList.add('hidden');
+    confirmAlertYesCallback = null;
+    confirmAlertNoCallback = null;
+    playRetroSound('key');
+    if (cb) cb();
+}
+
 function closeAlert() {
-    document.getElementById("customAlert").classList.add("hidden");
+    document.getElementById('customAlert').classList.add('hidden');
+    document.getElementById('alertActionsSingle').classList.remove('hidden');
+    document.getElementById('alertActionsConfirm').classList.add('hidden');
+    confirmAlertYesCallback = null;
+    confirmAlertNoCallback = null;
     playRetroSound('key');
 }

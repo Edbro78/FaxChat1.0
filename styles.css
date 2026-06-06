@@ -159,6 +159,31 @@ body,
     display: none;
 }
 
+.app-inbox-btn--alert {
+    animation: inbox-alert-blink 0.75s ease-in-out infinite alternate;
+    border-color: #dc2626;
+}
+
+.app-inbox-btn--alert .app-inbox-badge {
+    animation: inbox-badge-pulse 0.75s ease-in-out infinite alternate;
+}
+
+@keyframes inbox-alert-blink {
+    from {
+        background: #c0b7a6;
+        box-shadow: none;
+    }
+    to {
+        background: #fde68a;
+        box-shadow: 0 0 14px rgba(245, 158, 11, 0.85);
+    }
+}
+
+@keyframes inbox-badge-pulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.12); }
+}
+
 .app-main-nav {
     flex-shrink: 0;
     display: grid;
@@ -650,6 +675,37 @@ body,
     box-shadow: none;
 }
 
+.btn-reload-paper {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 14px;
+    min-height: 40px;
+    font-size: 11px;
+    font-weight: bold;
+    font-family: 'Courier Prime', monospace;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.btn-reload-paper i {
+    font-size: 14px;
+}
+
+.paper-indicators {
+    display: flex;
+    gap: 2px;
+    width: 54px;
+    flex-shrink: 0;
+}
+
+.paper-indicators .paper-led {
+    flex: 1;
+    height: 8px;
+    border: 1px solid #1c1917;
+}
+
 .lcd-display {
     background-color: var(--lcd-amber-bg);
     color: var(--lcd-amber-text);
@@ -769,9 +825,49 @@ input {
     border: 1px solid var(--beige-shadow);
 }
 
-/* Gammel faxmaskin — 8 sek mottak/sending */
+/* Gammel faxmaskin — mottak/sending */
 .fax-machine-overlay {
     justify-content: flex-end;
+    align-items: stretch;
+    width: 100%;
+    max-width: 100vw;
+    height: 100%;
+    height: 100dvh;
+    height: 100svh;
+    max-height: 100dvh;
+    box-sizing: border-box;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    overflow: hidden;
+}
+
+.fax-machine-overlay.mode-receive {
+    justify-content: flex-end;
+}
+
+.fax-machine-overlay.mode-receive .fax-overlay-status,
+.fax-machine-overlay.mode-receive #faxMachineHint {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.fax-receive-scene {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0 6px;
+    box-sizing: border-box;
+}
+
+@media (min-width: 481px) {
+    .fax-machine-overlay {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        max-width: 480px;
+    }
 }
 
 .fax-machine-overlay.mode-send {
@@ -1376,16 +1472,19 @@ input {
 }
 
 .fax-scan-line.scanning {
-    animation: fax-scan-sweep 8s linear forwards;
+    animation: fax-scan-sweep 6s linear forwards;
 }
 
 @keyframes fax-scan-sweep {
     0% { top: -4px; opacity: 0.9; }
-    100% { top: 340px; opacity: 0.4; }
+    100% { top: 100%; opacity: 0.4; }
 }
 
 .fax-emerging-tray {
     perspective: 400px;
+    position: relative;
+    overflow: hidden;
+    max-height: min(38vh, 240px);
 }
 
 .fax-emerging-paper {
@@ -1394,8 +1493,10 @@ input {
     right: 0;
     top: 0;
     width: 100%;
-    min-height: 300px;
-    padding: 20px 18px;
+    max-height: 100%;
+    min-height: 0;
+    padding: 10px 12px;
+    box-sizing: border-box;
     background-color: var(--paper-color);
     background-image: radial-gradient(#e4dfd0 8%, transparent 8%);
     background-size: 12px 12px;
@@ -1403,10 +1504,11 @@ input {
     box-shadow: 3px 6px 16px rgba(0, 0, 0, 0.28);
     transform: translateY(-92%);
     will-change: transform;
+    overflow: hidden;
 }
 
 .fax-emerging-paper.printing {
-    animation: fax-paper-emerge 8s cubic-bezier(0.22, 0.05, 0.15, 1) forwards;
+    animation: fax-paper-emerge 6s cubic-bezier(0.22, 0.05, 0.15, 1) forwards;
 }
 
 @keyframes fax-paper-emerge {
@@ -1417,9 +1519,174 @@ input {
 .fax-emerging-body {
     --fax-reveal: 0%;
     clip-path: inset(0 0 calc(100% - var(--fax-reveal)) 0);
-    min-height: 120px;
+    min-height: 48px;
+    max-height: min(28vh, 160px);
+    overflow: hidden;
+    word-break: break-word;
 }
 
 .fax-emerging-body.thermal-print {
     filter: contrast(1.05);
+}
+
+.fax-cover-sheet {
+    flex-shrink: 0;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border: 2px solid #1c1917;
+    background: linear-gradient(180deg, #f5f0e4 0%, #ebe4d4 100%);
+    box-shadow: inset 0 0 0 1px #c8c0a8;
+    font-family: 'Courier Prime', monospace;
+    color: #1c1917;
+}
+
+.fax-cover-sheet--compact {
+    margin-bottom: 8px;
+    padding: 8px 10px;
+}
+
+.fax-cover-kicker {
+    font-size: 8px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #78716c;
+    text-align: center;
+    margin-bottom: 2px;
+}
+
+.fax-cover-heading {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    text-align: center;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 2px solid #1c1917;
+}
+
+.fax-cover-sheet--compact .fax-cover-heading {
+    font-size: 11px;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+}
+
+.fax-cover-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.fax-cover-sheet--compact .fax-cover-grid {
+    gap: 4px;
+}
+
+.fax-cover-row {
+    display: grid;
+    grid-template-columns: minmax(72px, 38%) 1fr;
+    gap: 8px;
+    align-items: baseline;
+}
+
+.fax-cover-sheet--compact .fax-cover-row {
+    grid-template-columns: minmax(64px, 42%) 1fr;
+    gap: 6px;
+}
+
+.fax-cover-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #57534e;
+}
+
+.fax-cover-sheet--compact .fax-cover-label {
+    font-size: 8px;
+}
+
+.fax-cover-value {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    word-break: break-word;
+}
+
+.fax-cover-value--name {
+    font-size: 13px;
+    letter-spacing: 0.04em;
+}
+
+.fax-cover-value--time {
+    font-size: 12px;
+    letter-spacing: 0.12em;
+}
+
+.fax-cover-sheet--compact .fax-cover-value {
+    font-size: 10px;
+}
+
+.fax-cover-sheet--compact .fax-cover-value--name {
+    font-size: 11px;
+}
+
+.fax-cover-sheet--compact .fax-cover-value--time {
+    font-size: 11px;
+}
+
+#screenInbox .fax-sheet-body {
+    margin-top: 2px;
+}
+
+.fax-cover-paper {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #78716c;
+}
+
+.fax-cover-sheet--compact .fax-cover-paper {
+    margin-top: 6px;
+    padding-top: 6px;
+}
+
+.fax-cover-paper-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.fax-cover-paper-leds {
+    display: flex;
+    gap: 3px;
+    flex: 1;
+    max-width: 120px;
+}
+
+.fax-cover-paper-led {
+    flex: 1;
+    height: 9px;
+    border: 1px solid #1c1917;
+    background: #57534e;
+}
+
+.fax-cover-paper-led.is-lit {
+    background: #22c55e;
+    box-shadow: 0 0 4px #22c55e;
+}
+
+.fax-cover-sheet--compact .fax-cover-paper-led {
+    height: 7px;
+}
+
+.fax-cover-paper-count {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+.fax-cover-sheet--compact .fax-cover-paper-count {
+    font-size: 10px;
 }
