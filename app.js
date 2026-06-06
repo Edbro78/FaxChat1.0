@@ -806,10 +806,10 @@ let incomingFaxes = [];
 let pendingPrintQueue = [];
 let dialedBuffer = "";
 let activeRecipientStation = null;
-let currentAppScreen = 'kartotek';
+let currentAppScreen = 'start';
 let paperCapacity = PAPER_MAX;
 
-const APP_SCREENS = ['kartotek', 'dialer', 'compose', 'send', 'inbox'];
+const APP_SCREENS = ['start', 'kartotek', 'dialer', 'compose', 'send', 'inbox'];
 const NAV_SCREENS = ['kartotek', 'dialer', 'compose', 'send'];
 let kartotekIndex = 0;
 let stackViewIndex = 0;
@@ -830,7 +830,7 @@ async function initFaxApp() {
     updateUIVariables();
     updatePaperGauge();
     renderKartotek();
-    setAppScreen('kartotek', { skipFaxRefresh: true });
+    setAppScreen('start', { skipFaxRefresh: true });
     await refreshIncomingFaxes();
     await setupPushNotifications();
 
@@ -1185,6 +1185,39 @@ window.confirmAlertYes = confirmAlertYes;
 window.confirmAlertNo = confirmAlertNo;
 window.closeAlert = closeAlert;
 window.reloadPaper = reloadPaper;
+window.openInboxForPrint = openInboxForPrint;
+
+function updateStartScreenAlert() {
+    const wrap = document.getElementById('startFaxMachineWrap');
+    const lcd = document.getElementById('startJitflLcdText');
+    const rxLed = document.getElementById('startJitflLedRx');
+    const idleEl = document.getElementById('startIncomingIdle');
+    const actionBtn = document.getElementById('startIncomingAction');
+    const actionText = document.getElementById('startIncomingActionText');
+    const count = pendingPrintQueue.length;
+    const hasPending = count > 0;
+
+    wrap?.classList.toggle('start-fax--incoming', hasPending);
+    rxLed?.classList.toggle('lit', hasPending);
+
+    if (lcd) {
+        lcd.textContent = hasPending ? '!! NY FAX !!' : 'FAXCHAT READY';
+    }
+
+    idleEl?.classList.toggle('hidden', hasPending);
+    actionBtn?.classList.toggle('hidden', !hasPending);
+    actionBtn?.classList.toggle('start-incoming-link--active', hasPending);
+
+    if (actionText && hasPending) {
+        actionText.textContent = count === 1
+            ? 'NY FAX MOTTATT — GÅ TIL PRINT'
+            : `${count} NYE FAXER — GÅ TIL PRINT`;
+    }
+}
+
+function openInboxForPrint() {
+    setAppScreen('inbox');
+}
 
 function updateInboxBadge() {
     const badge = document.getElementById('inboxBadge');
@@ -1199,6 +1232,7 @@ function updateInboxBadge() {
         badge.classList.add('hidden');
         btn?.classList.remove('app-inbox-btn--alert');
     }
+    updateStartScreenAlert();
 }
 
 function setAppScreen(screen, options = {}) {

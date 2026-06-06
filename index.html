@@ -57,6 +57,9 @@
     <div id="appScreen" class="mobile-app hidden">
         <header class="app-session-bar">
             <div class="app-session-user">
+                <button type="button" onclick="setAppScreen('start')" class="app-home-btn" title="Start">
+                    <i class="fa-solid fa-house"></i>
+                </button>
                 <span class="app-session-dot"></span>
                 <strong id="sessionUserLabel">—</strong>
             </div>
@@ -70,7 +73,7 @@
         </header>
 
         <nav class="app-main-nav" aria-label="Hovedskjermer">
-            <button type="button" id="navKartotek" data-screen="kartotek" onclick="setAppScreen('kartotek')" class="app-nav-btn active">
+            <button type="button" id="navKartotek" data-screen="kartotek" onclick="setAppScreen('kartotek')" class="app-nav-btn">
                 <i class="fa-solid fa-box-archive"></i>
                 <span>KATALOG</span>
             </button>
@@ -89,8 +92,42 @@
         </nav>
 
         <main class="app-screen-viewport bg-[#d6cebf] bevel-out">
+            <!-- 0. Start -->
+            <section id="screenStart" class="app-screen is-active" aria-label="Start">
+                <div class="app-screen-body start-screen-body flex flex-col items-center justify-center p-4 min-h-0 flex-grow">
+                    <div id="startFaxMachineWrap" class="start-jitfl-scene">
+                        <div class="jitfl-room-bg" aria-hidden="true"></div>
+                        <div class="jitfl-machine-wrap start-jitfl-machine-wrap">
+                            <div class="jitfl-machine start-jitfl-machine bevel-out">
+                                <div class="jitfl-machine-bezel bevel-out">
+                                    <div class="jitfl-lcd lcd-display scanlines">
+                                        <span id="startJitflLcdText" class="jitfl-lcd-text">FAXCHAT READY</span>
+                                    </div>
+                                    <div class="jitfl-leds">
+                                        <span class="jitfl-led jitfl-led--green lit" aria-hidden="true"></span>
+                                        <span id="startJitflLedRx" class="jitfl-led jitfl-led--red" aria-hidden="true"></span>
+                                    </div>
+                                </div>
+                                <div class="jitfl-chassis-body bevel-out">
+                                    <div class="jitfl-brand">FAXCHAT MFG. CO. // FX-99</div>
+                                    <div class="start-jitfl-output-slot">
+                                        <div id="startJitflOutputPaper" class="start-jitfl-output-paper" aria-hidden="true"></div>
+                                        <div class="start-jitfl-output-rim"></div>
+                                    </div>
+                                    <div class="jitfl-speaker-grille" aria-hidden="true"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p id="startIncomingIdle" class="start-incoming-idle">Ingen innkommende fax pending</p>
+                    <button type="button" id="startIncomingAction" onclick="openInboxForPrint()" class="start-incoming-link hidden">
+                        <span id="startIncomingActionText">NY FAX MOTTATT — GÅ TIL PRINT</span>
+                    </button>
+                </div>
+            </section>
+
             <!-- 1. Telefonkatalog -->
-            <section id="screenKartotek" class="app-screen is-active" aria-label="Telefonkatalog">
+            <section id="screenKartotek" class="app-screen" aria-label="Telefonkatalog">
                 <div class="app-screen-header">
                     <h2 class="app-screen-title"><i class="fa-solid fa-box-archive"></i> TELEFONKATALOG</h2>
                     <p class="app-screen-desc">Klikk et kort for å velge mottaker</p>
@@ -191,20 +228,21 @@
                 </div>
                 <div class="app-screen-body app-screen-body--send p-2 min-h-0">
                     <div id="jitflIdlePreview" class="jitfl-idle-preview" aria-hidden="true">
-                        <div class="jitfl-machine jitfl-machine--compact">
-                            <div class="jitfl-machine-bezel">
-                                <div class="jitfl-lcd"><span class="jitfl-lcd-text">FX-99 READY</span></div>
-                                <div class="jitfl-leds">
-                                    <span class="jitfl-led jitfl-led--green lit"></span>
-                                    <span class="jitfl-led jitfl-led--amber"></span>
-                                </div>
+                        <div class="jitfl-status-panel lcd-display scanlines">
+                            <div class="jitfl-status-row jitfl-status-row--hero">
+                                <span class="jitfl-status-text">FaxChat-maskin klar for sending :</span>
+                                <span class="jitfl-status-led jitfl-status-led--hero lit" aria-hidden="true"></span>
                             </div>
-                            <div class="jitfl-chassis-body">
-                                <div class="jitfl-brand">TELEFAX CO.</div>
-                                <div class="jitfl-intake-bar"></div>
+                            <div class="jitfl-status-row">
+                                <span class="jitfl-status-text">ISDN ready</span>
+                                <span class="jitfl-status-led lit" aria-hidden="true"></span>
+                            </div>
+                            <div class="jitfl-status-row">
+                                <span class="jitfl-status-text">WAP ready</span>
+                                <span class="jitfl-status-led lit" aria-hidden="true"></span>
                             </div>
                         </div>
-                        <p class="jitfl-idle-hint font-mono text-stone-600 text-center text-xs mt-2">TRYKK SEND FAX NEDENFOR</p>
+                        <p class="jitfl-idle-hint font-mono text-stone-600 text-center text-xs mt-3">TRYKK SEND FAX NEDENFOR</p>
                     </div>
                 </div>
                 <footer class="app-screen-footer flex-col gap-2 !items-stretch">
@@ -247,7 +285,7 @@
                     </div>
                 </div>
                 <footer class="app-screen-footer">
-                    <button type="button" onclick="setAppScreen('kartotek')" class="btn-retro w-full py-2 text-xs font-bold">TILBAKE TIL KATALOG</button>
+                    <button type="button" onclick="setAppScreen('start')" class="btn-retro w-full py-2 text-xs font-bold">TILBAKE TIL START</button>
                 </footer>
             </section>
         </main>
