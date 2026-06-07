@@ -370,7 +370,9 @@ function beep(freq, duration, startTime) {
 
 const FAX_CYCLE_MS = 8000;
 const FAX_RECEIVE_MS = 6000;
+const FAX_SHRED_MS = 6000;
 const PAPER_MAX = 6;
+const MESSAGE_MAX_LENGTH = 50;
 const FAX_SEND_PAUSE_MS = 2600;
 const FAX_SEND_FEED_MS = 5400;
 let isFaxMachineBusy = false;
@@ -1186,6 +1188,7 @@ window.confirmAlertNo = confirmAlertNo;
 window.closeAlert = closeAlert;
 window.reloadPaper = reloadPaper;
 window.openInboxForPrint = openInboxForPrint;
+window.shredTopPaper = shredTopPaper;
 
 function updateStartScreenAlert() {
     const wrap = document.getElementById('startFaxMachineWrap');
@@ -1332,26 +1335,108 @@ function getViewedFax() {
     return incomingFaxes[stackViewIndex] || null;
 }
 
-async function discardTopPaper() {
+async function shredTopPaper() {
+    if (isFaxMachineBusy) return;
     const current = getViewedFax();
     if (!current) return;
-    const listEl = document.getElementById("paperStackContainer");
-    const sheet = listEl.querySelector(`#fax-sheet-${current.id}`);
-    if (!sheet) return;
 
-    playRetroSound('reelslide');
-    sheet.style.transform = "translate(500px, -200px) rotate(25deg)";
-    sheet.style.opacity = "0";
+    isFaxMachineBusy = true;
+    try {
+        await runShredAnimation(current);
 
-    setTimeout(async () => {
         const sb = getSupabase();
         const { error } = await sb.from('faxes').delete().eq('id', current.id);
-        if (error) showMsgBox('SLETT FEIL', error.message);
+        if (error) {
+            showMsgBox('MAKULERING FEIL', error.message);
+            return;
+        }
         if (stackViewIndex > 0 && stackViewIndex >= incomingFaxes.length - 1) {
             stackViewIndex--;
         }
         await refreshIncomingFaxes();
-    }, 400);
+        playRetroSound('key');
+    } finally {
+        isFaxMachineBusy = false;
+    }
+}
+
+function resetShredderDom() {
+    const paper = document.getElementById('shredPaperSheet');
+    const blades = document.getElementById('shredBlades');
+    const strips = document.getElementById('shredStrips');
+    const shredLedTx = document.getElementById('shredLedTx');
+    const shredLedActive = document.getElementById('shredLedActive');
+
+    paper?.classList.remove('phase-feed');
+    blades?.classList.remove('active');
+    shredLedTx?.classList.remove('lit');
+    shredLedActive?.classList.remove('lit');
+    if (strips) strips.innerHTML = '';
+    if (document.getElementById('shredPaperBody')) {
+        document.getElementById('shredPaperBody').textContent = '';
+    }
+    if (document.getElementById('shredPaperCover')) {
+        document.getElementById('shredPaperCover').innerHTML = '';
+    }
+}
+
+function populateShredStrips() {
+    const bin = document.getElementById('shredStrips');
+    if (!bin) return;
+    bin.innerHTML = '';
+    for (let i = 0; i < 14; i++) {
+        const strip = document.createElement('div');
+        strip.className = 'jitfl-shred-strip';
+        strip.style.animationDelay = `${0.9 + (i % 7) * 0.12}s`;
+        bin.appendChild(strip);
+    }
+}
+
+function hideShredderOverlay() {
+    document.getElementById('shredderOverlay')?.classList.add('hidden');
+    const status = document.getElementById('shredderStatus');
+    const hint = document.getElementById('shredderHint');
+    const lcd = document.getElementById('shredLcdText');
+    if (status) status.innerText = 'STANDBY';
+    if (hint) hint.innerText = 'MATER ARK INN I MAKULERER...';
+    if (lcd) lcd.textContent = 'MAKULERER';
+    resetShredderDom();
+}
+
+async function runShredAnimation(fax) {
+    const overlay = document.getElementById('shredderOverlay');
+    const paper = document.getElementById('shredPaperSheet');
+    const blades = document.getElementById('shredBlades');
+    const shredLedTx = document.getElementById('shredLedTx');
+    const shredLedActive = document.getElementById('shredLedActive');
+    const lcd = document.getElementById('shredLcdText');
+
+    resetShredderDom();
+    document.getElementById('shredPaperCover').innerHTML = buildFaxCoverHtml(fax);
+    document.getElementById('shredPaperBody').textContent = fax.content;
+
+    overlay.classList.remove('hidden');
+    if (lcd) lcd.textContent = 'MAKULERER...';
+    document.getElementById('shredderStatus').innerText = 'AKTIV';
+    document.getElementById('shredderHint').innerText = 'MAKULERER KONFIDENSIELT ARK — 6 SEK';
+
+    playFaxMachineCycle(FAX_SHRED_MS);
+
+    await delay(350);
+    paper?.classList.add('phase-feed');
+    blades?.classList.add('active');
+    shredLedTx?.classList.add('lit');
+    shredLedActive?.classList.add('lit');
+    populateShredStrips();
+
+    await delay(FAX_SHRED_MS);
+
+    hideShredderOverlay();
+    clearFaxSoundCleanup();
+}
+
+async function discardTopPaper() {
+    await shredTopPaper();
 }
 
 async function sendTopToBack() {
@@ -1406,6 +1491,11 @@ async function startTransmission() {
         return;
     }
 
+    if (text.length > MESSAGE_MAX_LENGTH) {
+        showMsgBox('FOR LANG MELDING', `Maks ${MESSAGE_MAX_LENGTH} tegn. Forkort meldingen og prøv igjen.`);
+        return;
+    }
+
     if (!destProfile) {
         showMsgBox("INGEN MOTTAKER", "Kunne ikke finne mottaker i katalogen.");
         return;
@@ -1444,7 +1534,7 @@ async function startTransmission() {
             await promptRefillPaper();
         }
 
-        showMsgBox('SENDT', `FAX OVERFØRT TIL NR ${destProfile.station_id} (${destProfile.name}).`);
+        showMsgBox('FAX er Sendt', 'Ingen feilmelding på ISDN/WAP-linje99');
         setAppScreen('compose', { skipFaxRefresh: true });
         await refreshIncomingFaxes();
     } finally {

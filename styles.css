@@ -78,6 +78,7 @@ body,
     overflow: hidden;
     box-sizing: border-box;
     padding-bottom: env(safe-area-inset-bottom);
+    isolation: isolate;
 }
 
 .app-session-bar {
@@ -301,14 +302,12 @@ body,
     font-size: 29.25px;
 }
 
-.app-screen--compose .compose-meta-text,
-.app-screen--compose .compose-label,
-.app-screen--compose .compose-hint {
+.app-screen--compose .compose-meta-text {
     font-size: 22.5px;
 }
 
 .app-screen--compose .compose-textarea {
-    font-size: 36px;
+    font-size: 43.2px;
     line-height: 1.5;
 }
 
@@ -364,13 +363,13 @@ body,
 .start-jitfl-scene {
     position: relative;
     width: 100%;
-    max-width: 476px;
-    min-height: min(70dvh, 504px);
+    max-width: 714px;
+    min-height: min(75dvh, 756px);
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    border: 4px solid #1a1814;
-    box-shadow: 4px 10px 0 rgba(0, 0, 0, 0.35);
+    border: 6px solid #1a1814;
+    box-shadow: 6px 15px 0 rgba(0, 0, 0, 0.35);
     overflow: hidden;
 }
 
@@ -382,29 +381,45 @@ body,
 .start-jitfl-machine-wrap {
     position: relative;
     z-index: 2;
-    padding: 14px 14px 20px;
+    padding: 21px 21px 30px;
+}
+
+.start-jitfl-scene .jitfl-lcd {
+    min-width: 210px;
+    min-height: 54px;
+    padding: 9px 15px;
 }
 
 .start-jitfl-scene .jitfl-lcd-text {
-    font-size: clamp(1.75rem, 7vw, 2.45rem);
+    font-size: clamp(2.625rem, 10.5vw, 3.675rem);
 }
 
-.start-jitfl-scene .jitfl-brand {
-    font-size: clamp(1.1rem, 4.9vw, 1.55rem);
+.start-jitfl-scene .jitfl-brand,
+.start-jitfl-brand {
+    font-size: clamp(1.65rem, 7.35vw, 2.325rem);
+    margin-bottom: 15px;
+    line-height: 1.12;
+    letter-spacing: 0.06em;
+    text-align: left;
 }
 
 .start-jitfl-scene .jitfl-led {
-    width: 20px;
-    height: 20px;
+    width: 30px;
+    height: 30px;
+    border-width: 3px;
+}
+
+.start-jitfl-scene .jitfl-leds {
+    gap: 12px;
 }
 
 .start-jitfl-scene .jitfl-machine-bezel {
-    padding: 14px 17px;
-    gap: 14px;
+    padding: 21px 25px;
+    gap: 21px;
 }
 
 .start-jitfl-scene .jitfl-chassis-body {
-    padding: 17px 20px 22px;
+    padding: 25px 30px 33px;
 }
 
 .start-jitfl-machine {
@@ -423,49 +438,114 @@ body,
 
 @keyframes start-jitfl-idle-hum {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-2px); }
+    50% { transform: translateY(-3px); }
 }
 
 @keyframes start-jitfl-incoming-blink {
     from {
-        box-shadow: 4px 10px 0 rgba(0, 0, 0, 0.35), 0 0 0 rgba(245, 158, 11, 0);
+        box-shadow: 6px 15px 0 rgba(0, 0, 0, 0.35), 0 0 0 rgba(245, 158, 11, 0);
     }
     to {
         box-shadow:
-            4px 10px 0 rgba(0, 0, 0, 0.35),
-            0 0 28px rgba(245, 158, 11, 0.55),
-            inset 0 0 20px rgba(251, 191, 36, 0.12);
+            6px 15px 0 rgba(0, 0, 0, 0.35),
+            0 0 42px rgba(245, 158, 11, 0.55),
+            inset 0 0 30px rgba(251, 191, 36, 0.12);
     }
 }
 
 .start-jitfl-output-slot {
     position: relative;
-    height: 34px;
-    margin-top: 6px;
+    height: 51px;
+    margin-top: 9px;
     background: linear-gradient(180deg, #0d0c0a 0%, #2a2620 45%, #0d0c0a 100%);
-    border: 4px inset #0d0c0a;
-    overflow: visible;
+    border: 6px inset #0d0c0a;
+    overflow: hidden;
+}
+
+.start-jitfl-slot-glow {
+    position: absolute;
+    inset: 5px;
+    z-index: 1;
+    border-radius: 1px;
+    pointer-events: none;
+    animation: start-fax-slot-blink 1.15s ease-in-out infinite alternate;
+}
+
+@keyframes start-fax-slot-blink {
+    from {
+        background: rgba(34, 197, 94, 0.28);
+        box-shadow: inset 0 0 16px rgba(34, 197, 94, 0.55), 0 0 8px rgba(34, 197, 94, 0.35);
+    }
+    to {
+        background: rgba(250, 204, 21, 0.28);
+        box-shadow: inset 0 0 16px rgba(250, 204, 21, 0.55), 0 0 8px rgba(234, 179, 8, 0.35);
+    }
+}
+
+.start-jitfl-status-strip {
+    display: flex;
+    gap: 3px;
+    margin-top: 15px;
+    padding: 5px 7px;
+    background: linear-gradient(180deg, #0d0c0a 0%, #2a2620 100%);
+    border: 3px inset #5c5548;
+}
+
+.start-jitfl-status-strip span {
+    flex: 1;
+    height: 18px;
+    min-width: 0;
+    border: 1px solid #1a1814;
+    background: #57534e;
+    animation: start-fax-status-blink 1.1s ease-in-out infinite alternate;
+}
+
+.start-jitfl-status-strip span:nth-child(1) { animation-delay: 0s; }
+.start-jitfl-status-strip span:nth-child(2) { animation-delay: 0.08s; }
+.start-jitfl-status-strip span:nth-child(3) { animation-delay: 0.16s; }
+.start-jitfl-status-strip span:nth-child(4) { animation-delay: 0.24s; }
+.start-jitfl-status-strip span:nth-child(5) { animation-delay: 0.32s; }
+.start-jitfl-status-strip span:nth-child(6) { animation-delay: 0.4s; }
+.start-jitfl-status-strip span:nth-child(7) { animation-delay: 0.48s; }
+.start-jitfl-status-strip span:nth-child(8) { animation-delay: 0.56s; }
+.start-jitfl-status-strip span:nth-child(9) { animation-delay: 0.64s; }
+.start-jitfl-status-strip span:nth-child(10) { animation-delay: 0.72s; }
+.start-jitfl-status-strip span:nth-child(11) { animation-delay: 0.8s; }
+.start-jitfl-status-strip span:nth-child(12) { animation-delay: 0.88s; }
+.start-jitfl-status-strip span:nth-child(13) { animation-delay: 0.96s; }
+.start-jitfl-status-strip span:nth-child(14) { animation-delay: 1.04s; }
+
+@keyframes start-fax-status-blink {
+    from {
+        background: #22c55e;
+        box-shadow: 0 0 5px #22c55e, inset 0 0 3px rgba(255, 255, 255, 0.35);
+    }
+    to {
+        background: #eab308;
+        box-shadow: 0 0 5px #facc15, inset 0 0 2px rgba(0, 0, 0, 0.25);
+    }
 }
 
 .start-jitfl-output-rim {
     position: absolute;
     inset: 0;
-    border-top: 2px solid rgba(255, 255, 255, 0.08);
+    border-top: 3px solid rgba(255, 255, 255, 0.08);
     pointer-events: none;
 }
 
 .start-jitfl-output-paper {
     display: none;
     position: absolute;
+    z-index: 2;
     left: 8%;
     width: 84%;
     bottom: 70%;
-    height: 73px;
+    height: 110px;
     background-color: var(--paper-color);
     background-image: radial-gradient(#e4dfd0 8%, transparent 8%);
-    background-size: 10px 10px;
-    border: 2px solid #c8c0a8;
-    box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.25);
+    background-size: 15px 15px;
+    border: 3px solid #c8c0a8;
+    box-shadow: 3px 6px 12px rgba(0, 0, 0, 0.25);
     transform: rotate(-1deg);
 }
 
@@ -475,13 +555,13 @@ body,
 }
 
 @keyframes start-jitfl-paper-peek {
-    from { transform: translateY(6px) rotate(-1deg); }
-    to { transform: translateY(-4px) rotate(0.5deg); }
+    from { transform: translateY(9px) rotate(-1deg); }
+    to { transform: translateY(-6px) rotate(0.5deg); }
 }
 
 #startJitflLedRx.lit {
     background: #ff3333;
-    box-shadow: 0 0 14px #ff0000, 0 0 22px rgba(255, 0, 0, 0.45);
+    box-shadow: 0 0 21px #ff0000, 0 0 33px rgba(255, 0, 0, 0.45);
     animation: jitfl-led-blink 0.32s ease-in-out infinite alternate;
 }
 
@@ -791,12 +871,42 @@ body,
     }
 }
 
+#screenInbox .app-screen-body {
+    min-height: 0;
+}
+
+#screenInbox #paperStackContainer {
+    flex: 1 1 auto;
+    min-height: 51svh;
+    height: 51svh;
+    max-height: 51svh;
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+#screenInbox #stackNavBar {
+    position: relative;
+    z-index: 20;
+    margin-top: 2.5rem;
+    padding: 1rem 12px 0.625rem;
+    flex-shrink: 0;
+    background: var(--beige-plastic);
+    border-top: 2px solid #9e9584;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+}
+
 #screenInbox .fax-paper-sheet {
     left: 2%;
     right: 2%;
-    top: 8px;
-    min-height: 280px;
-    max-height: calc(100% - 16px);
+    top: 0;
+    height: calc(100% - 18px);
+    min-height: 0;
+    max-height: calc(100% - 18px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
 }
 
 .pt-safe {
@@ -926,6 +1036,33 @@ body,
     border: 4px solid #5a5142;
 }
 
+/* Kvitterings-/alert-boks (+40 %) */
+.custom-alert-panel {
+    width: 100%;
+    max-width: 33.6rem;
+    padding: 1.75rem;
+    gap: 1.4rem;
+    border: 6px solid #9e9584;
+    box-sizing: border-box;
+}
+
+.custom-alert-title {
+    font-size: 1.75rem;
+}
+
+.custom-alert-msg {
+    font-size: 1.05rem;
+}
+
+.custom-alert-btn {
+    font-size: 1.05rem;
+    padding: 0.7rem 1.75rem;
+}
+
+#alertActionsConfirm {
+    gap: 1.05rem;
+}
+
 .fax-paper-sheet {
     background-color: var(--paper-color);
     background-image: radial-gradient(#e4dfd0 8%, transparent 8%);
@@ -1037,14 +1174,13 @@ input {
 
 /* Gammel faxmaskin — mottak/sending */
 .fax-machine-overlay {
+    position: absolute;
+    inset: 0;
     justify-content: flex-end;
     align-items: stretch;
     width: 100%;
-    max-width: 100vw;
+    max-width: 100%;
     height: 100%;
-    height: 100dvh;
-    height: 100svh;
-    max-height: 100dvh;
     box-sizing: border-box;
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
@@ -1069,15 +1205,6 @@ input {
     overflow: hidden;
     padding: 0 6px;
     box-sizing: border-box;
-}
-
-@media (min-width: 481px) {
-    .fax-machine-overlay {
-        left: 50%;
-        right: auto;
-        transform: translateX(-50%);
-        max-width: 480px;
-    }
 }
 
 .fax-machine-overlay.mode-send {
@@ -1111,9 +1238,9 @@ input {
     .fax-machine-overlay.mode-send .fax-overlay-status,
     .fax-machine-overlay.mode-send #faxMachineHint,
     .fax-machine-overlay.mode-send .jitfl-send-fullscreen {
-        max-width: 480px;
-        margin-left: auto;
-        margin-right: auto;
+        max-width: 100%;
+        margin-left: 0;
+        margin-right: 0;
     }
 }
 
@@ -1359,6 +1486,7 @@ input {
 .jitfl-intake-glow {
     position: absolute;
     inset: 0;
+    z-index: 1;
     background: linear-gradient(90deg, transparent, rgba(255, 150, 0, 0.25), transparent);
     opacity: 0;
     transition: opacity 0.2s;
@@ -1377,6 +1505,7 @@ input {
 .jitfl-rollers {
     position: absolute;
     inset: 4px 8px;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: space-around;
@@ -1429,12 +1558,63 @@ input {
     animation: jitfl-btn-press 0.5s ease-in-out infinite alternate;
 }
 
+/* Send-fane: grønn/gul statuslys under sending (som forsiden) */
+.send-jitfl-slot-glow {
+    position: absolute;
+    inset: 3px;
+    z-index: 0;
+    border-radius: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.jitfl-scene--transmitting .send-jitfl-slot-glow {
+    opacity: 1;
+    animation: start-fax-slot-blink 1.15s ease-in-out infinite alternate;
+}
+
+.send-jitfl-status-strip {
+    display: flex;
+    gap: 3px;
+    margin-top: 10px;
+    padding: 4px 6px;
+    background: linear-gradient(180deg, #0d0c0a 0%, #2a2620 100%);
+    border: 2px inset #5c5548;
+}
+
+.send-jitfl-status-strip span {
+    flex: 1;
+    height: 12px;
+    min-width: 0;
+    border: 1px solid #1a1814;
+    background: #57534e;
+}
+
+.jitfl-scene--transmitting .send-jitfl-status-strip span {
+    animation: start-fax-status-blink 1.1s ease-in-out infinite alternate;
+}
+
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(1) { animation-delay: 0s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(2) { animation-delay: 0.08s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(3) { animation-delay: 0.16s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(4) { animation-delay: 0.24s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(5) { animation-delay: 0.32s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(6) { animation-delay: 0.4s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(7) { animation-delay: 0.48s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(8) { animation-delay: 0.56s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(9) { animation-delay: 0.64s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(10) { animation-delay: 0.72s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(11) { animation-delay: 0.8s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(12) { animation-delay: 0.88s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(13) { animation-delay: 0.96s; }
+.jitfl-scene--transmitting .send-jitfl-status-strip span:nth-child(14) { animation-delay: 1.04s; }
+
 @keyframes jitfl-btn-press {
     from { transform: scale(1); }
     to { transform: scale(0.94) translate(1px, 1px); }
 }
 
-/* Kompakt forhåndsvisning på SEND-fanen */
+/* Forhåndsvisning på SEND-fanen */
 .jitfl-idle-preview {
     width: 100%;
     height: 100%;
@@ -1442,74 +1622,82 @@ input {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 12px;
+    padding: 23px;
 }
 
-.jitfl-status-panel {
+.jitfl-idle-preview .jitfl-idle-hint {
+    font-size: 1.46rem;
+    margin-top: 1.46rem;
+}
+
+.jitfl-idle-preview .jitfl-status-panel {
     width: 100%;
-    max-width: 320px;
-    padding: 16px 14px;
+    max-width: 624px;
+    padding: 31px 27px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    border: 3px solid #5a5142;
-    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.85);
+    gap: 23px;
+    border: 4px solid #5a5142;
+    box-shadow: inset 0 0 23px rgba(0, 0, 0, 0.85);
 }
 
-.jitfl-status-row {
+.jitfl-idle-preview .jitfl-status-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 20px;
 }
 
-.jitfl-status-row--hero {
-    padding-bottom: 10px;
-    margin-bottom: 2px;
-    border-bottom: 1px dashed rgba(255, 176, 0, 0.35);
+.jitfl-idle-preview .jitfl-status-row--hero {
+    padding-bottom: 0;
+    margin-bottom: 0;
+    border-bottom: none;
 }
 
-.jitfl-status-text {
+.jitfl-idle-preview .jitfl-status-row--hero .jitfl-status-leds {
+    display: flex;
+    gap: 13px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.jitfl-idle-preview .jitfl-status-row--hero .jitfl-status-leds .jitfl-status-led:nth-child(2).lit {
+    animation-delay: 0.15s;
+}
+
+.jitfl-idle-preview .jitfl-status-text {
     font-family: 'VT323', monospace;
-    font-size: clamp(1rem, 4.2vw, 1.35rem);
+    font-size: clamp(1.95rem, 8.2vw, 2.63rem);
     letter-spacing: 0.04em;
     line-height: 1.2;
     text-align: left;
     flex: 1;
 }
 
-.jitfl-status-row--hero .jitfl-status-text {
-    font-size: clamp(1.05rem, 4.5vw, 1.45rem);
+.jitfl-idle-preview .jitfl-status-row--hero .jitfl-status-text {
+    font-size: clamp(2.05rem, 8.8vw, 2.83rem);
 }
 
-.jitfl-status-led {
+.jitfl-idle-preview .jitfl-status-led {
     flex-shrink: 0;
-    width: 14px;
-    height: 14px;
+    width: 27px;
+    height: 27px;
     border-radius: 50%;
-    border: 2px solid #3d3830;
+    border: 3px solid #3d3830;
     background: #444;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
-.jitfl-status-led.lit {
+.jitfl-idle-preview .jitfl-status-led.lit {
     background: #33ff33;
     animation: jitfl-status-blink 0.85s ease-in-out infinite alternate;
 }
 
-.jitfl-status-led--hero.lit {
-    width: 20px;
-    height: 20px;
-    border-width: 2px;
+.jitfl-idle-preview .jitfl-status-led--hero.lit {
+    width: 39px;
+    height: 39px;
+    border-width: 4px;
     animation: jitfl-status-blink-hero 0.45s ease-in-out infinite alternate;
-}
-
-.jitfl-status-row:nth-child(2) .jitfl-status-led.lit {
-    animation-delay: 0.15s;
-}
-
-.jitfl-status-row:nth-child(3) .jitfl-status-led.lit {
-    animation-delay: 0.3s;
 }
 
 @keyframes jitfl-status-blink {
@@ -1832,6 +2020,8 @@ input {
     max-height: min(28vh, 160px);
     overflow: hidden;
     word-break: break-word;
+    font-size: 1.25rem;
+    line-height: 1.45;
 }
 
 .fax-emerging-body.thermal-print {
@@ -1945,6 +2135,8 @@ input {
 
 #screenInbox .fax-sheet-body {
     margin-top: 2px;
+    font-size: 1.5rem;
+    line-height: 1.45;
 }
 
 .fax-cover-paper {
@@ -1998,4 +2190,314 @@ input {
 
 .fax-cover-sheet--compact .fax-cover-paper-count {
     font-size: 10px;
+}
+
+/* Makuleringsmaskin — JITFL-stil, 6 sek */
+.shredder-overlay {
+    position: absolute;
+    inset: 0;
+    justify-content: flex-start;
+    align-items: stretch;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    overflow: hidden;
+    overflow-x: clip;
+}
+
+.shredder-overlay,
+.shredder-overlay * {
+    box-sizing: border-box;
+}
+
+.shredder-overlay-status {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.35);
+    flex-shrink: 0;
+}
+
+.jitfl-shred-scene {
+    position: relative;
+    flex: 0 0 70%;
+    width: 100%;
+    max-width: 100%;
+    height: 70%;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 8px 6px 10px;
+    overflow: hidden;
+    overflow-x: clip;
+}
+
+.jitfl-shred-scene .jitfl-room-bg {
+    position: absolute;
+    inset: 0;
+}
+
+.jitfl-shred-scene .jitfl-lcd-text {
+    font-size: clamp(1.1rem, 4.8vw, 1.75rem);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jitfl-shred-scene .jitfl-brand {
+    font-size: clamp(0.62rem, 2.6vw, 0.95rem);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0.06em;
+}
+
+.jitfl-shred-scene .jitfl-led {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.jitfl-shred-scene .jitfl-machine-bezel {
+    padding: 10px 10px;
+    gap: 8px;
+    min-width: 0;
+}
+
+.jitfl-shred-scene .jitfl-lcd {
+    min-width: 0;
+    flex: 1 1 0;
+}
+
+.jitfl-shred-scene .jitfl-chassis-body {
+    padding: 12px 10px 14px;
+    min-width: 0;
+}
+
+.jitfl-shred-paper {
+    position: relative;
+    z-index: 3;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 72px;
+    max-height: 22%;
+    margin-bottom: 8px;
+    padding: 10px;
+    background-color: var(--paper-color);
+    background-image: radial-gradient(#e4dfd0 8%, transparent 8%);
+    background-size: 12px 12px;
+    border: 2px solid #c8c0a8;
+    box-shadow: 2px 4px 0 rgba(0, 0, 0, 0.3);
+    font-family: 'Courier Prime', monospace;
+    overflow: hidden;
+    transform: translateY(0);
+    will-change: transform, opacity;
+    flex-shrink: 0;
+}
+
+.jitfl-shred-paper .fax-cover-sheet {
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.jitfl-shred-paper .fax-cover-row {
+    grid-template-columns: minmax(0, 38%) minmax(0, 1fr);
+}
+
+.jitfl-shred-paper-body {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    line-height: 1.35;
+    margin-top: 6px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    max-height: 5.5svh;
+    overflow: hidden;
+}
+
+.jitfl-shred-paper.phase-feed {
+    animation: jitfl-shred-paper-feed 6s cubic-bezier(0.35, 0.05, 0.2, 1) forwards;
+}
+
+@keyframes jitfl-shred-paper-feed {
+    0% {
+        transform: translateY(0) rotate(-1deg);
+        opacity: 1;
+    }
+    35% {
+        transform: translateY(72px) rotate(0deg);
+        opacity: 1;
+    }
+    55% {
+        transform: translateY(96px) scaleY(0.55);
+        opacity: 0.85;
+    }
+    75% {
+        transform: translateY(108px) scaleY(0.2);
+        opacity: 0.4;
+    }
+    100% {
+        transform: translateY(116px) scaleY(0);
+        opacity: 0;
+    }
+}
+
+.jitfl-shredder-wrap {
+    position: relative;
+    z-index: 4;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    overflow: hidden;
+}
+
+.jitfl-shredder {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.jitfl-shredder .jitfl-chassis-body {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.jitfl-shredder-wrap:has(.jitfl-shred-blades.active) .jitfl-shredder {
+    animation: jitfl-machine-rumble 0.14s steps(2) infinite;
+}
+
+.jitfl-shred-slot {
+    position: relative;
+    height: clamp(36px, 6svh, 52px);
+    background: linear-gradient(180deg, #1a1814 0%, #2a2620 50%, #1a1814 100%);
+    border: 4px inset #0d0c0a;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.jitfl-shred-blades {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    opacity: 0.35;
+    transition: opacity 0.2s;
+}
+
+.jitfl-shred-blades.active {
+    opacity: 1;
+}
+
+.jitfl-shred-blades span {
+    display: block;
+    width: 10px;
+    height: 14px;
+    background: linear-gradient(180deg, #8a8275 0%, #3d3830 100%);
+    border: 1px solid #1a1814;
+    border-radius: 1px;
+}
+
+.jitfl-shred-blades.active span {
+    animation: jitfl-shred-blade-chop 0.12s steps(2) infinite;
+}
+
+.jitfl-shred-blades.active span:nth-child(2) { animation-delay: 0.03s; }
+.jitfl-shred-blades.active span:nth-child(3) { animation-delay: 0.06s; }
+.jitfl-shred-blades.active span:nth-child(4) { animation-delay: 0.02s; }
+.jitfl-shred-blades.active span:nth-child(5) { animation-delay: 0.05s; }
+
+@keyframes jitfl-shred-blade-chop {
+    0% { transform: translateY(0); background: #9e9584; }
+    50% { transform: translateY(3px); background: #c8c0a8; }
+    100% { transform: translateY(0); background: #8a8275; }
+}
+
+.jitfl-shred-bin {
+    position: relative;
+    flex: 1;
+    min-height: clamp(88px, 14svh, 130px);
+    margin-top: 6px;
+    background: linear-gradient(180deg, #3d3830 0%, #2a2620 100%);
+    border: 3px inset #1a1814;
+    overflow: hidden;
+}
+
+.jitfl-shred-strips {
+    position: absolute;
+    inset: 4px 6px 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    justify-content: flex-start;
+    gap: 3px;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.jitfl-shred-strip {
+    width: 5px;
+    height: 0;
+    background: linear-gradient(180deg, var(--paper-color) 0%, #d8d0bc 100%);
+    border-radius: 1px;
+    opacity: 0;
+    animation: jitfl-shred-strip-fall 2.8s ease-out forwards;
+}
+
+@keyframes jitfl-shred-strip-fall {
+    0% {
+        height: 0;
+        opacity: 0;
+        transform: translateY(0);
+    }
+    15% {
+        height: 72px;
+        opacity: 1;
+    }
+    100% {
+        height: 48px;
+        opacity: 0.45;
+        transform: translateY(52px) rotate(8deg);
+    }
+}
+
+.shredder-overlay #shredderHint {
+    width: 100%;
+    max-width: 100%;
+    flex-shrink: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    box-sizing: border-box;
+}
+
+#shredLedActive.lit,
+#shredLedTx.lit {
+    background: #ff3333;
+    box-shadow: 0 0 12px #ff0000;
+    animation: jitfl-led-blink 0.35s ease-in-out infinite alternate;
 }
