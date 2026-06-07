@@ -533,32 +533,6 @@ body,
     pointer-events: none;
 }
 
-.start-jitfl-output-paper {
-    display: none;
-    position: absolute;
-    z-index: 2;
-    left: 8%;
-    width: 84%;
-    bottom: 70%;
-    height: 110px;
-    background-color: var(--paper-color);
-    background-image: radial-gradient(#e4dfd0 8%, transparent 8%);
-    background-size: 15px 15px;
-    border: 3px solid #c8c0a8;
-    box-shadow: 3px 6px 12px rgba(0, 0, 0, 0.25);
-    transform: rotate(-1deg);
-}
-
-.start-jitfl-scene.start-fax--incoming .start-jitfl-output-paper {
-    display: block;
-    animation: start-jitfl-paper-peek 1.4s ease-in-out infinite alternate;
-}
-
-@keyframes start-jitfl-paper-peek {
-    from { transform: translateY(9px) rotate(-1deg); }
-    to { transform: translateY(-6px) rotate(0.5deg); }
-}
-
 #startJitflLedRx.lit {
     background: #ff3333;
     box-shadow: 0 0 21px #ff0000, 0 0 33px rgba(255, 0, 0, 0.45);
