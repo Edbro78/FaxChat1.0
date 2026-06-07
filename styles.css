@@ -363,13 +363,13 @@ body,
 .start-jitfl-scene {
     position: relative;
     width: 100%;
-    max-width: 714px;
-    min-height: min(75dvh, 756px);
+    max-width: 571px;
+    min-height: min(60dvh, 605px);
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    border: 6px solid #1a1814;
-    box-shadow: 6px 15px 0 rgba(0, 0, 0, 0.35);
+    border: 5px solid #1a1814;
+    box-shadow: 5px 12px 0 rgba(0, 0, 0, 0.35);
     overflow: hidden;
 }
 
@@ -381,45 +381,45 @@ body,
 .start-jitfl-machine-wrap {
     position: relative;
     z-index: 2;
-    padding: 21px 21px 30px;
+    padding: 17px 17px 24px;
 }
 
 .start-jitfl-scene .jitfl-lcd {
-    min-width: 210px;
-    min-height: 54px;
-    padding: 9px 15px;
+    min-width: 168px;
+    min-height: 43px;
+    padding: 7px 12px;
 }
 
 .start-jitfl-scene .jitfl-lcd-text {
-    font-size: clamp(2.625rem, 10.5vw, 3.675rem);
+    font-size: clamp(2.1rem, 8.4vw, 2.94rem);
 }
 
 .start-jitfl-scene .jitfl-brand,
 .start-jitfl-brand {
-    font-size: clamp(1.65rem, 7.35vw, 2.325rem);
-    margin-bottom: 15px;
+    font-size: clamp(1.32rem, 5.88vw, 1.86rem);
+    margin-bottom: 12px;
     line-height: 1.12;
     letter-spacing: 0.06em;
     text-align: left;
 }
 
 .start-jitfl-scene .jitfl-led {
-    width: 30px;
-    height: 30px;
-    border-width: 3px;
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
 }
 
 .start-jitfl-scene .jitfl-leds {
-    gap: 12px;
+    gap: 10px;
 }
 
 .start-jitfl-scene .jitfl-machine-bezel {
-    padding: 21px 25px;
-    gap: 21px;
+    padding: 17px 20px;
+    gap: 17px;
 }
 
 .start-jitfl-scene .jitfl-chassis-body {
-    padding: 25px 30px 33px;
+    padding: 20px 24px 26px;
 }
 
 .start-jitfl-machine {
@@ -438,33 +438,33 @@ body,
 
 @keyframes start-jitfl-idle-hum {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-3px); }
+    50% { transform: translateY(-2px); }
 }
 
 @keyframes start-jitfl-incoming-blink {
     from {
-        box-shadow: 6px 15px 0 rgba(0, 0, 0, 0.35), 0 0 0 rgba(245, 158, 11, 0);
+        box-shadow: 5px 12px 0 rgba(0, 0, 0, 0.35), 0 0 0 rgba(245, 158, 11, 0);
     }
     to {
         box-shadow:
-            6px 15px 0 rgba(0, 0, 0, 0.35),
-            0 0 42px rgba(245, 158, 11, 0.55),
-            inset 0 0 30px rgba(251, 191, 36, 0.12);
+            5px 12px 0 rgba(0, 0, 0, 0.35),
+            0 0 34px rgba(245, 158, 11, 0.55),
+            inset 0 0 24px rgba(251, 191, 36, 0.12);
     }
 }
 
 .start-jitfl-output-slot {
     position: relative;
-    height: 51px;
-    margin-top: 9px;
+    height: 41px;
+    margin-top: 7px;
     background: linear-gradient(180deg, #0d0c0a 0%, #2a2620 45%, #0d0c0a 100%);
-    border: 6px inset #0d0c0a;
+    border: 5px inset #0d0c0a;
     overflow: hidden;
 }
 
 .start-jitfl-slot-glow {
     position: absolute;
-    inset: 5px;
+    inset: 4px;
     z-index: 1;
     border-radius: 1px;
     pointer-events: none;
@@ -484,16 +484,16 @@ body,
 
 .start-jitfl-status-strip {
     display: flex;
-    gap: 3px;
-    margin-top: 15px;
-    padding: 5px 7px;
+    gap: 2px;
+    margin-top: 12px;
+    padding: 4px 6px;
     background: linear-gradient(180deg, #0d0c0a 0%, #2a2620 100%);
-    border: 3px inset #5c5548;
+    border: 2px inset #5c5548;
 }
 
 .start-jitfl-status-strip span {
     flex: 1;
-    height: 18px;
+    height: 14px;
     min-width: 0;
     border: 1px solid #1a1814;
     background: #57534e;
@@ -529,13 +529,13 @@ body,
 .start-jitfl-output-rim {
     position: absolute;
     inset: 0;
-    border-top: 3px solid rgba(255, 255, 255, 0.08);
+    border-top: 2px solid rgba(255, 255, 255, 0.08);
     pointer-events: none;
 }
 
 #startJitflLedRx.lit {
     background: #ff3333;
-    box-shadow: 0 0 21px #ff0000, 0 0 33px rgba(255, 0, 0, 0.45);
+    box-shadow: 0 0 17px #ff0000, 0 0 26px rgba(255, 0, 0, 0.45);
     animation: jitfl-led-blink 0.32s ease-in-out infinite alternate;
 }
 
