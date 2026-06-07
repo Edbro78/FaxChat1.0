@@ -369,7 +369,7 @@ function beep(freq, duration, startTime) {
 }
 
 const FAX_CYCLE_MS = 8000;
-const FAX_RECEIVE_MS = 6000;
+const FAX_RECEIVE_MS = 10000;
 const FAX_SHRED_MS = 6000;
 const PAPER_MAX = 6;
 const MESSAGE_MAX_LENGTH = 50;
@@ -586,10 +586,6 @@ function showFaxMachineOverlay(mode, statusText, hintText) {
     } else {
         document.getElementById('faxMachineReceiveLayout').classList.remove('hidden');
         document.getElementById('faxMachineSendLayout').classList.add('hidden');
-        const scanLine = document.getElementById('faxScanLine');
-        scanLine.classList.remove('hidden');
-        void scanLine.offsetWidth;
-        scanLine.classList.add('scanning');
     }
 }
 
@@ -678,28 +674,40 @@ async function runFaxReceiveAnimation(fax) {
     playFaxMachineCycle(FAX_RECEIVE_MS);
 
     const paper = document.getElementById('faxEmergingPaper');
-    const body = document.getElementById('faxEmergingBody');
     const cover = document.getElementById('faxEmergingCover');
+    const body = document.getElementById('faxEmergingBody');
     const scanLine = document.getElementById('faxScanLine');
     if (cover) cover.innerHTML = buildFaxCoverHtml(fax, remaining);
-    body.textContent = fax.content;
-    body.classList.add('thermal-print');
+    if (body) body.textContent = fax.content;
 
     const animMs = `${FAX_RECEIVE_MS}ms`;
-    if (scanLine) scanLine.style.animationDuration = animMs;
     paper.style.animationDuration = animMs;
+    if (scanLine) {
+        scanLine.classList.remove('hidden');
+        scanLine.style.animationDuration = animMs;
+        void scanLine.offsetWidth;
+        scanLine.classList.add('scanning');
+    }
 
+    cover?.classList.add('thermal-print');
+    body?.classList.add('thermal-print');
     paper.classList.remove('hidden');
     void paper.offsetWidth;
     paper.classList.add('printing');
 
-    await Promise.all([
-        animateThermalReveal(body, FAX_RECEIVE_MS),
-        delay(FAX_RECEIVE_MS)
+    const revealPromise = Promise.all([
+        cover ? animateThermalReveal(cover, FAX_RECEIVE_MS) : Promise.resolve(),
+        body ? animateThermalReveal(body, FAX_RECEIVE_MS) : Promise.resolve()
     ]);
 
-    body.classList.remove('thermal-print');
-    if (scanLine) scanLine.style.animationDuration = '';
+    await Promise.all([revealPromise, delay(FAX_RECEIVE_MS)]);
+
+    cover?.classList.remove('thermal-print');
+    body?.classList.remove('thermal-print');
+    if (scanLine) {
+        scanLine.classList.remove('scanning');
+        scanLine.style.animationDuration = '';
+    }
     paper.style.animationDuration = '';
     hideFaxMachineOverlay();
     clearFaxSoundCleanup();
