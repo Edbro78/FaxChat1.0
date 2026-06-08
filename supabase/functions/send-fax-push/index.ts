@@ -11,6 +11,7 @@ type FaxRecord = {
     sender_user_id: string;
     recipient_station_id: string;
     content: string;
+    created_at?: string;
 };
 
 type WebhookPayload = {
@@ -78,11 +79,27 @@ Deno.serve(async (req) => {
         .eq('id', fax.sender_user_id)
         .maybeSingle();
 
-    const senderLabel = sender
-        ? `${sender.name.toUpperCase()} (NR ${sender.station_id})`
-        : 'UKJENT';
+    function displaySenderName(name: string | undefined): string {
+        if (!name) return 'Ukjent';
+        return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+    }
 
-    const preview = fax.content.length > 90 ? `${fax.content.slice(0, 90)}…` : fax.content;
+    function formatKl(iso: string): string {
+        const d = new Date(iso);
+        const parts = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Europe/Oslo',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }).formatToParts(d);
+        const hour = parts.find((p) => p.type === 'hour')?.value ?? '00';
+        const minute = parts.find((p) => p.type === 'minute')?.value ?? '00';
+        return `${hour}${minute}`;
+    }
+
+    const senderName = displaySenderName(sender?.name);
+    const timeKl = formatKl(fax.created_at ?? new Date().toISOString());
+    const notificationBody = `Ny FAX fra ${senderName} kl ${timeKl}`;
 
     const { data: subs } = await supabase
         .from('push_subscriptions')
@@ -91,7 +108,7 @@ Deno.serve(async (req) => {
 
     const payload = JSON.stringify({
         title: 'NY FAX MOTTATT',
-        body: `${senderLabel}: ${preview}`,
+        body: notificationBody,
         url: '/',
         tag: `fax-${fax.id}`
     });
