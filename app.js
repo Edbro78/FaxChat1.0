@@ -109,10 +109,17 @@ function urlBase64ToUint8Array(base64String) {
     return output;
 }
 
+const SW_CACHE_BUST = 'v=6';
+
 async function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return null;
     try {
-        return await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        const reg = await navigator.serviceWorker.register(`/sw.js?${SW_CACHE_BUST}`, {
+            scope: '/',
+            updateViaCache: 'none'
+        });
+        reg.update().catch(() => {});
+        return reg;
     } catch (e) {
         console.warn('Service worker registration failed', e);
         return null;

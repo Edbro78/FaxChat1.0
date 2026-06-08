@@ -1,4 +1,14 @@
-/* FaxChat service worker — pushvarsler (PWA fra hjemskjerm) */
+/* FaxChat service worker v6 — pushvarsler (PWA fra hjemskjerm) */
+
+const SW_VERSION = 6;
+
+self.addEventListener('install', (event) => {
+    event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('activate', (event) => {
+    event.waitUntil(self.clients.claim());
+});
 
 function formatKl(date) {
     const parts = new Intl.DateTimeFormat('en-GB', {
@@ -17,8 +27,8 @@ function displaySenderName(name) {
     return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 }
 
-/** Vis aldri fax-innhold i varselet — kun avsender og klokkeslett. */
-function safeNotificationBody(payload) {
+/** Bygg varseltekst uten å vise fax-innhold — ignorerer payload.body som visningskilde. */
+function buildPushHeadline(payload) {
     if (payload.senderName && payload.timeKl) {
         return `Ny FAX fra ${displaySenderName(payload.senderName)} kl ${payload.timeKl}`;
     }
@@ -32,33 +42,37 @@ function safeNotificationBody(payload) {
     if (colon > 0) {
         const header = body.slice(0, colon).trim();
         const namePart = header.replace(/\s*\(NR\s+\d+\)\s*$/i, '').trim();
-        const senderName = displaySenderName(namePart);
-        const timeKl = payload.timeKl || formatKl(new Date());
-        return `Ny FAX fra ${senderName} kl ${timeKl}`;
+        if (namePart) {
+            const senderName = displaySenderName(namePart);
+            const timeKl = payload.timeKl || formatKl(new Date());
+            return `Ny FAX fra ${senderName} kl ${timeKl}`;
+        }
     }
 
     return 'Ny FAX mottatt — åpne FaxChat for å lese.';
 }
 
 self.addEventListener('push', (event) => {
-    let payload = { title: 'NY FAX MOTTATT', body: 'Åpne FaxChat for å lese.', url: '/' };
+    let payload = { title: 'NY FAX MOTTATT', url: '/' };
     try {
         if (event.data) {
             payload = { ...payload, ...event.data.json() };
         }
     } catch (_) { /* ignore */ }
 
-    const options = {
-        body: safeNotificationBody(payload),
-        icon: payload.icon || '/assets/fax-machine.png',
-        badge: payload.badge || '/assets/fax-machine.png',
-        tag: payload.tag || 'faxchat-incoming',
-        renotify: true,
-        data: { url: payload.url || '/' },
-        vibrate: [120, 60, 120]
-    };
+    const headline = buildPushHeadline(payload);
 
-    event.waitUntil(self.registration.showNotification(payload.title, options));
+    event.waitUntil(
+        self.registration.showNotification(headline, {
+            body: '',
+            icon: payload.icon || '/assets/fax-machine.png',
+            badge: payload.badge || '/assets/fax-machine.png',
+            tag: payload.tag || 'faxchat-incoming',
+            renotify: true,
+            data: { url: payload.url || '/', swVersion: SW_VERSION },
+            vibrate: [120, 60, 120]
+        })
+    );
 });
 
 self.addEventListener('notificationclick', (event) => {

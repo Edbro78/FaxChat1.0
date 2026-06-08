@@ -106,13 +106,15 @@ Deno.serve(async (req) => {
         .select('id, subscription')
         .eq('user_id', recipient.id);
 
+    // Ikke send fax.content eller forhåndsvisning — kun metadata for varselet.
     const payload = JSON.stringify({
         title: 'NY FAX MOTTATT',
         body: notificationBody,
         senderName,
         timeKl,
         url: '/',
-        tag: `fax-${fax.id}`
+        tag: `fax-${fax.id}`,
+        swVersion: 6
     });
 
     let sent = 0;
