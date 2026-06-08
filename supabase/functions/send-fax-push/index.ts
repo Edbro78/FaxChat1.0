@@ -109,6 +109,8 @@ Deno.serve(async (req) => {
     const payload = JSON.stringify({
         title: 'NY FAX MOTTATT',
         body: notificationBody,
+        senderName,
+        timeKl,
         url: '/',
         tag: `fax-${fax.id}`
     });
