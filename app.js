@@ -685,7 +685,7 @@ async function runFaxReceiveAnimation(fax) {
     const body = document.getElementById('faxEmergingBody');
     const scanLine = document.getElementById('faxScanLine');
     if (cover) cover.innerHTML = buildFaxCoverHtml(fax, remaining);
-    if (body) body.textContent = fax.content;
+    setFaxBodyElement(body, fax);
 
     const animMs = `${FAX_RECEIVE_MS}ms`;
     paper.style.animationDuration = animMs;
@@ -726,7 +726,7 @@ async function runFaxReceiveAnimation(fax) {
     return true;
 }
 
-async function runFaxSendAnimation(text, destProfile) {
+async function runFaxSendAnimation(text, destProfile, imageUrl = null) {
     const hintEl = document.getElementById('faxMachineHint');
     const statusEl = document.getElementById('faxMachineStatus');
     const intakeGlow = document.getElementById('jitflIntakeGlow');
@@ -746,7 +746,7 @@ async function runFaxSendAnimation(text, destProfile) {
     if (destLabel) {
         destLabel.textContent = `TIL: NR ${destProfile.station_id} — ${destProfile.name.toUpperCase()}`;
     }
-    if (msgBody) msgBody.textContent = text;
+    setFaxBodyElement(msgBody, { content: text, image_url: imageUrl });
     sendSheet.classList.remove('phase-feed');
     sendSheet.classList.add('phase-pause');
     if (lcd) lcd.textContent = 'ARK LASTET';
@@ -821,6 +821,8 @@ const DTMF_FREQS = {
 let directoryProfiles = [];
 let incomingFaxes = [];
 let pendingPrintQueue = [];
+let pendingFaxImageUrl = null;
+let isUploadingFaxImage = false;
 let dialedBuffer = "";
 let activeRecipientStation = null;
 let currentAppScreen = 'start';
@@ -908,14 +910,22 @@ function updateSendButtonState() {
         return;
     }
 
-    if (!text) {
-        setSendHints(`Koblet til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id}) — skriv melding under SKRIV.`);
+    if (isUploadingFaxImage) {
+        setSendHints('Laster opp bildevedlegg — vent litt...');
         btn.disabled = true;
         btn.classList.add('opacity-40');
         return;
     }
 
-    setSendHints(`Klar: SEND FAX til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id}).`);
+    if (!text && !pendingFaxImageUrl) {
+        setSendHints(`Koblet til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id}) — skriv melding eller legg ved bilde under SKRIV.`);
+        btn.disabled = true;
+        btn.classList.add('opacity-40');
+        return;
+    }
+
+    const attachNote = pendingFaxImageUrl ? ' + BILDE' : '';
+    setSendHints(`Klar: SEND FAX til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id})${attachNote}.`);
     btn.disabled = false;
     btn.classList.remove('opacity-40');
 }
@@ -937,7 +947,7 @@ async function refreshIncomingFaxes(options = {}) {
     const station = currentProfile.station_id;
     const { data, error } = await sb
         .from('faxes')
-        .select('id, content, created_at, stack_order, sender_user_id')
+        .select('id, content, image_url, created_at, stack_order, sender_user_id')
         .eq('recipient_station_id', station)
         .order('stack_order', { ascending: false })
         .order('created_at', { ascending: false });
@@ -1286,6 +1296,113 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function isSafeFaxImageUrl(url) {
+    return typeof url === 'string' && /^https?:\/\//i.test(url);
+}
+
+function buildFaxImageHtml(imageUrl) {
+    if (!isSafeFaxImageUrl(imageUrl)) return '';
+    const safeUrl = imageUrl.replace(/"/g, '&quot;');
+    return `<div class="fax-image-frame"><img src="${safeUrl}" alt="Faks vedlegg" class="fax-image-pixel" loading="lazy" decoding="async"></div>`;
+}
+
+function buildFaxBodyHtml(msg) {
+    const parts = [];
+    if (msg.image_url) {
+        parts.push(buildFaxImageHtml(msg.image_url));
+    }
+    const text = (msg.content || '').trim();
+    if (text) {
+        parts.push(`<div class="fax-sheet-text">${escapeHtml(text)}</div>`);
+    }
+    return parts.join('') || '<div class="fax-sheet-text">&nbsp;</div>';
+}
+
+function setFaxBodyElement(el, msg) {
+    if (!el) return;
+    el.innerHTML = buildFaxBodyHtml(msg);
+}
+
+function setFaxImageStatus(text) {
+    const statusEl = document.getElementById('faxImageStatus');
+    if (statusEl) statusEl.textContent = text || '';
+}
+
+function updateFaxImagePreview(url) {
+    const preview = document.getElementById('faxImagePreview');
+    const img = document.getElementById('faxImagePreviewImg');
+    if (!preview || !img) return;
+
+    if (url) {
+        img.src = url;
+        preview.classList.remove('hidden');
+    } else {
+        img.removeAttribute('src');
+        preview.classList.add('hidden');
+    }
+}
+
+function clearFaxImage() {
+    pendingFaxImageUrl = null;
+    const input = document.getElementById('faxImageInput');
+    if (input) input.value = '';
+    updateFaxImagePreview(null);
+    setFaxImageStatus('');
+    updateSendButtonState();
+}
+
+async function uploadFaxImage(blob) {
+    const sb = getSupabase();
+    const contentType = blob.type || 'image/jpeg';
+    const ext = contentType === 'image/png' ? 'png' : 'jpg';
+    const fileName = `${currentProfile.id}/${Date.now()}.${ext}`;
+    const { error } = await sb.storage.from('fax-attachments').upload(fileName, blob, {
+        contentType,
+        upsert: false
+    });
+
+    if (error) throw error;
+
+    const { data } = sb.storage.from('fax-attachments').getPublicUrl(fileName);
+    return data.publicUrl;
+}
+
+async function handleFaxImageSelected(event) {
+    const input = event.target;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+        showMsgBox('UGYLDIG FIL', 'Velg et bilde (JPG, PNG, osv.).');
+        input.value = '';
+        return;
+    }
+
+    isUploadingFaxImage = true;
+    setFaxImageStatus('BEHANDLER BILDE...');
+    updateSendButtonState();
+
+    try {
+        const blob = await processFaxImage(file);
+        setFaxImageStatus('LASTER OPP...');
+        const publicUrl = await uploadFaxImage(blob);
+        pendingFaxImageUrl = publicUrl;
+        updateFaxImagePreview(publicUrl);
+        const kb = Math.max(1, Math.round(blob.size / 1024));
+        setFaxImageStatus(`VEDLEGG KLAR (${kb} KB)`);
+        playRetroSound('key');
+    } catch (err) {
+        pendingFaxImageUrl = null;
+        updateFaxImagePreview(null);
+        setFaxImageStatus('');
+        showMsgBox('BILDE FEIL', err.message || 'Kunne ikke behandle bildet.');
+        input.value = '';
+    } finally {
+        isUploadingFaxImage = false;
+        updateSendButtonState();
+    }
+}
+
 function renderFaxes() {
     const listEl = document.getElementById("paperStackContainer");
     listEl.innerHTML = "";
@@ -1331,7 +1448,7 @@ function renderFaxes() {
         paper.innerHTML = `
             <div class="fax-cover-sheet">${buildFaxCoverHtml(msg)}</div>
             <div class="fax-sheet-body text-xs uppercase leading-relaxed text-left flex-grow break-words tracking-wide" style="font-family: 'Courier Prime', monospace;">
-                ${escapeHtml(msg.content)}
+                ${buildFaxBodyHtml(msg)}
             </div>
             <div class="mt-4 pt-2 border-t border-dotted border-stone-300 flex justify-between items-center text-[9px] text-stone-400">
                 <span>FX-99 SECURE RX LINE</span>
@@ -1428,7 +1545,7 @@ async function runShredAnimation(fax) {
 
     resetShredderDom();
     document.getElementById('shredPaperCover').innerHTML = buildFaxCoverHtml(fax);
-    document.getElementById('shredPaperBody').textContent = fax.content;
+    setFaxBodyElement(document.getElementById('shredPaperBody'), fax);
 
     overlay.classList.remove('hidden');
     if (lcd) lcd.textContent = 'MAKULERER...';
@@ -1499,10 +1616,11 @@ async function startTransmission() {
 
     const inputEl = document.getElementById("faxContentInput");
     const text = inputEl.value.trim().toUpperCase();
+    const imageUrl = pendingFaxImageUrl;
     const destProfile = match.profile || directoryProfiles.find((p) => p.station_id === activeRecipientStation);
 
-    if (!text) {
-        showMsgBox("BLANK SHEET DETECTED", "AVBRUTT: OPTISK SKANNER DETEKTERTE ET BLANKT ARK. SKRIV MELDE-TEKST FØR DU MATER INN ARKET.");
+    if (!text && !imageUrl) {
+        showMsgBox("BLANK SHEET DETECTED", "AVBRUTT: OPTISK SKANNER DETEKTERTE ET BLANKT ARK. SKRIV MELDE-TEKST ELLER LEGG VED ET BILDE FØR DU MATER INN ARKET.");
         return;
     }
 
@@ -1524,17 +1642,21 @@ async function startTransmission() {
 
     try {
         initAudio();
-        await runFaxSendAnimation(text, destProfile);
+        await runFaxSendAnimation(text, destProfile, imageUrl);
 
         const sb = getSupabase();
-        const { error } = await sb.from('faxes').insert({
+        const insertPayload = {
             sender_user_id: currentProfile.id,
             recipient_station_id: activeRecipientStation,
-            content: text,
+            content: text || '[BILDE]',
             stack_order: Date.now()
-        });
+        };
+        if (imageUrl) insertPayload.image_url = imageUrl;
+
+        const { error } = await sb.from('faxes').insert(insertPayload);
 
         inputEl.value = "";
+        clearFaxImage();
         updateSendButtonState();
 
         if (error) {

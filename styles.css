@@ -318,6 +318,92 @@ body,
     letter-spacing: 0.04em;
 }
 
+.compose-attach-row {
+    border-top: 1px dotted #d4cca9;
+    padding-top: 0.5rem;
+}
+
+.compose-attach-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.6rem;
+    border: 2px solid #a8a29e;
+    background: linear-gradient(180deg, #f5f0e6 0%, #e8e0d0 100%);
+    color: #44403c;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 2px 0 #a8a29e;
+}
+
+.compose-attach-btn:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.compose-image-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.compose-image-preview-img {
+    width: 44px;
+    height: 44px;
+    object-fit: cover;
+    border: 2px solid #1c1917;
+    image-rendering: pixelated;
+    filter: contrast(1.15);
+    background: #fff;
+}
+
+.compose-image-remove {
+    width: 22px;
+    height: 22px;
+    border: 1px solid #a8a29e;
+    background: #f5f0e6;
+    color: #7f1d1d;
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.compose-image-status {
+    flex: 1;
+    min-width: 0;
+    text-transform: uppercase;
+}
+
+.fax-image-frame {
+    margin: 0 0 0.75rem;
+    padding: 4px;
+    border: 3px double #1c1917;
+    background:
+        linear-gradient(90deg, #d6d3d1 1px, transparent 1px) 0 0 / 8px 8px,
+        linear-gradient(#d6d3d1 1px, transparent 1px) 0 0 / 8px 8px,
+        #fafaf9;
+    box-shadow: inset 0 0 0 1px #78716c, 2px 2px 0 rgba(0, 0, 0, 0.12);
+}
+
+.fax-image-pixel {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    filter: contrast(1.2);
+    background: #fff;
+}
+
+.fax-sheet-text + .fax-image-frame,
+.fax-image-frame + .fax-sheet-text {
+    margin-top: 0.5rem;
+}
+
 .app-screen--compose .compose-goto-send-btn i {
     font-size: 18px;
 }

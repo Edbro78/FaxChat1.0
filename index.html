@@ -201,6 +201,20 @@
                                   onkeydown="playRetroSound('type')"
                                   oninput="updateSendButtonState()"
                                   style="background-color: #fafcf6;"></textarea>
+                        <div class="compose-attach-row flex items-center gap-2 mt-2 shrink-0">
+                            <label for="faxImageInput" class="compose-attach-btn" title="Legg ved bilde">
+                                <i class="fa-solid fa-paperclip"></i>
+                                <span class="compose-attach-label">BILDE</span>
+                                <input type="file" id="faxImageInput" accept="image/*" class="sr-only" onchange="handleFaxImageSelected(event)">
+                            </label>
+                            <div id="faxImagePreview" class="compose-image-preview hidden">
+                                <img id="faxImagePreviewImg" alt="Vedlegg forhåndsvisning" class="compose-image-preview-img">
+                                <button type="button" onclick="clearFaxImage()" class="compose-image-remove" title="Fjern bilde" aria-label="Fjern bilde">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                            <span id="faxImageStatus" class="compose-image-status font-mono text-[10px] text-stone-500"></span>
+                        </div>
                     </div>
                 </div>
                 <footer class="app-screen-footer flex-col gap-2 !items-stretch">
@@ -419,6 +433,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="push-config.js"></script>
+    <script src="image.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

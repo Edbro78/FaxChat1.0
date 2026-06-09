@@ -17,9 +17,12 @@ create table if not exists public.faxes (
   sender_user_id uuid not null references public.profiles (id) on delete cascade,
   recipient_station_id text not null references public.profiles (station_id),
   content text not null,
+  image_url text null,
   stack_order bigint not null default 0,
   created_at timestamptz not null default now()
 );
+
+-- Eksisterende installasjon: alter table public.faxes add column if not exists image_url text null;
 
 create index if not exists faxes_recipient_idx on public.faxes (recipient_station_id, stack_order desc, created_at desc);
 
@@ -151,3 +154,14 @@ set name = public.email_local_name(u.email),
     fax_label = public.email_local_name(u.email)
 from auth.users u
 where u.id = p.id;
+
+-- Storage: opprett bucket "fax-attachments" (Public) i Dashboard, deretter kjør:
+-- insert into storage.buckets (id, name, public) values ('fax-attachments', 'fax-attachments', true) on conflict do nothing;
+--
+-- drop policy if exists "fax_attachments_read" on storage.objects;
+-- create policy "fax_attachments_read" on storage.objects for select to public
+--   using (bucket_id = 'fax-attachments');
+--
+-- drop policy if exists "fax_attachments_upload" on storage.objects;
+-- create policy "fax_attachments_upload" on storage.objects for insert to authenticated
+--   with check (bucket_id = 'fax-attachments' and (storage.foldername(name))[1] = auth.uid()::text);
