@@ -166,6 +166,16 @@
                             <div class="text-right text-[10px] font-mono flex-1" id="stationMatchInfo">INGEN NUMMER</div>
                         </div>
                     </div>
+                    <div class="dialer-recipients shrink-0">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-[10px] font-mono text-stone-700 font-bold">MOTTAKERE</span>
+                            <button type="button" id="addRecipientBtn" onclick="addCurrentRecipient()" disabled
+                                    class="recipient-add-btn disabled:opacity-40 disabled:cursor-not-allowed">
+                                <i class="fa-solid fa-user-plus"></i> LEGG TIL MOTTAKER
+                            </button>
+                        </div>
+                        <div id="selectedRecipientsList" class="recipient-chip-list flex flex-wrap gap-1 mt-1"></div>
+                    </div>
                     <div class="grid grid-cols-3 gap-2 bg-[#c6beaf] p-3 border-2 border-[#a49a88] rounded-sm shadow-inner flex-grow content-center max-h-[min(52vh,420px)]">
                         <button type="button" onclick="pressDialKey('1')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">1</button>
                         <button type="button" onclick="pressDialKey('2')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">2</button>
@@ -181,6 +191,11 @@
                         <button type="button" onclick="showPhoneBellAlert()" class="btn-retro py-4 font-bold text-amber-800 text-sm">BELL</button>
                     </div>
                 </div>
+                <footer class="app-screen-footer">
+                    <button type="button" onclick="goToComposeFromDialer()" class="btn-retro w-full py-3 text-xs font-bold font-mono">
+                        GÅ TIL SKRIV <i class="fa-solid fa-arrow-right ml-1"></i>
+                    </button>
+                </footer>
             </section>
 
             <!-- 3. Skriv melding -->

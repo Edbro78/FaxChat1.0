@@ -726,7 +726,13 @@ async function runFaxReceiveAnimation(fax) {
     return true;
 }
 
-async function runFaxSendAnimation(text, destProfile, imageUrl = null) {
+async function runFaxSendAnimation(text, destProfiles, imageUrl = null) {
+    const recipients = Array.isArray(destProfiles) ? destProfiles : [destProfiles];
+    const firstDest = recipients[0];
+    const isMulti = recipients.length > 1;
+    const destSummary = isMulti
+        ? `${recipients.length} MOTTAKERE`
+        : `NR ${firstDest.station_id} (${firstDest.name.toUpperCase()})`;
     const hintEl = document.getElementById('faxMachineHint');
     const statusEl = document.getElementById('faxMachineStatus');
     const intakeGlow = document.getElementById('jitflIntakeGlow');
@@ -739,12 +745,14 @@ async function runFaxSendAnimation(text, destProfile, imageUrl = null) {
     showFaxMachineOverlay(
         'send',
         'KLAR',
-        `SJEKK ARKET — NR ${destProfile.station_id} (${destProfile.name.toUpperCase()})`
+        `SJEKK ARKET — ${destSummary}`
     );
     playFaxMachineCycle(FAX_CYCLE_MS);
 
     if (destLabel) {
-        destLabel.textContent = `TIL: NR ${destProfile.station_id} — ${destProfile.name.toUpperCase()}`;
+        destLabel.textContent = isMulti
+            ? `TIL: ${recipients.map((p) => 'NR ' + p.station_id).join(', ')}`
+            : `TIL: NR ${firstDest.station_id} — ${firstDest.name.toUpperCase()}`;
     }
     setFaxBodyElement(msgBody, { content: text, image_url: imageUrl });
     sendSheet.classList.remove('phase-feed');
@@ -825,6 +833,8 @@ let pendingFaxImageUrl = null;
 let isUploadingFaxImage = false;
 let dialedBuffer = "";
 let activeRecipientStation = null;
+let selectedRecipients = [];
+const MAX_RECIPIENTS = 5;
 let currentAppScreen = 'start';
 let paperCapacity = PAPER_MAX;
 
@@ -842,6 +852,7 @@ async function initFaxApp() {
 
     dialedBuffer = "";
     activeRecipientStation = null;
+    selectedRecipients = [];
     paperCapacity = PAPER_MAX;
     stackViewIndex = 0;
 
@@ -887,14 +898,7 @@ function updateSendButtonState() {
     if (!btn) return;
 
     const text = (document.getElementById('faxContentInput')?.value || '').trim();
-    const match = resolveDialMatch(dialedBuffer);
-    const connected = match.status === 'connected' && match.profile && match.profile.id !== currentProfile?.id;
-
-    if (connected) {
-        activeRecipientStation = match.profile.station_id;
-    } else {
-        activeRecipientStation = null;
-    }
+    const recipients = getAllRecipientProfiles();
 
     if (paperCapacity <= 0) {
         setSendHints('Tomt for papir — trykk PAPIR-knappen for å fylle på.');
@@ -903,7 +907,7 @@ function updateSendButtonState() {
         return;
     }
 
-    if (!connected) {
+    if (recipients.length === 0) {
         setSendHints('Velg mottaker i KATALOG eller tast NUMMER.');
         btn.disabled = true;
         btn.classList.add('opacity-40');
@@ -917,15 +921,19 @@ function updateSendButtonState() {
         return;
     }
 
+    const recipientText = recipients.length === 1
+        ? `${recipients[0].name.toUpperCase()} (NR ${recipients[0].station_id})`
+        : `${recipients.length} MOTTAKERE (${recipients.map((p) => 'NR ' + p.station_id).join(', ')})`;
+
     if (!text && !pendingFaxImageUrl) {
-        setSendHints(`Koblet til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id}) — skriv melding eller legg ved bilde under SKRIV.`);
+        setSendHints(`Koblet til ${recipientText} — skriv melding eller legg ved bilde under SKRIV.`);
         btn.disabled = true;
         btn.classList.add('opacity-40');
         return;
     }
 
     const attachNote = pendingFaxImageUrl ? ' + BILDE' : '';
-    setSendHints(`Klar: SEND FAX til ${match.profile.name.toUpperCase()} (NR ${match.profile.station_id})${attachNote}.`);
+    setSendHints(`Klar: SEND FAX til ${recipientText}${attachNote}.`);
     btn.disabled = false;
     btn.classList.remove('opacity-40');
 }
@@ -1091,18 +1099,15 @@ function updateUIVariables() {
     if (matchedProfile) {
         if (matchedProfile.id === me.id) {
             document.getElementById("stationMatchInfo").innerHTML = `<span class="text-red-500">EGEN NR</span>`;
-            setDestLabels('IKKE KOBLET (EGEN)');
             document.getElementById("dialerBlinker").innerText = "FEIL";
             activeRecipientStation = null;
         } else {
             document.getElementById("stationMatchInfo").innerHTML = `<span class="text-green-400">${matchedProfile.name.toUpperCase()}</span>`;
-            setDestLabels(`NR ${matchedProfile.station_id} (${matchedProfile.name})`);
             document.getElementById("dialerBlinker").innerText = "KOBLET";
             activeRecipientStation = matchedProfile.station_id;
         }
     } else {
         activeRecipientStation = null;
-        setDestLabels('IKKE KOBLET');
         document.getElementById("dialerBlinker").innerText = "IDLE";
         if (status === 'not_found' && dialedBuffer.length > 0) {
             document.getElementById("stationMatchInfo").innerHTML = `<span class="text-amber-500">UKJENT NR</span>`;
@@ -1113,6 +1118,9 @@ function updateUIVariables() {
         }
     }
 
+    setDestLabels(buildRecipientsLabel());
+    renderSelectedRecipients();
+    updateAddRecipientButton();
     updateSendButtonState();
 }
 
@@ -1125,13 +1133,6 @@ function pressDialKey(num) {
     }
 
     updateUIVariables();
-
-    if (dialedBuffer.length === 2) {
-        const match = resolveDialMatch(dialedBuffer);
-        if (match.status === 'connected' && match.profile && match.profile.id !== currentProfile?.id) {
-            setAppScreen('compose', { skipFaxRefresh: true });
-        }
-    }
 }
 
 function clearDialKey() {
@@ -1139,6 +1140,99 @@ function clearDialKey() {
     activeRecipientStation = null;
     playRetroSound('key');
     updateUIVariables();
+}
+
+function getCurrentDialMatchProfile() {
+    const match = resolveDialMatch(dialedBuffer);
+    if (match.status === 'connected' && match.profile && match.profile.id !== currentProfile?.id) {
+        return match.profile;
+    }
+    return null;
+}
+
+function getAllRecipientStations() {
+    const stations = [...selectedRecipients];
+    const current = getCurrentDialMatchProfile();
+    if (current && !stations.includes(current.station_id)) {
+        stations.push(current.station_id);
+    }
+    return stations;
+}
+
+function getAllRecipientProfiles() {
+    return getAllRecipientStations()
+        .map((s) => directoryProfiles.find((p) => p.station_id === s))
+        .filter(Boolean);
+}
+
+function buildRecipientsLabel() {
+    const profiles = getAllRecipientProfiles();
+    if (profiles.length === 0) return 'IKKE KOBLET';
+    if (profiles.length === 1) return `NR ${profiles[0].station_id} (${profiles[0].name})`;
+    return profiles.map((p) => `NR ${p.station_id}`).join(' + ');
+}
+
+function renderSelectedRecipients() {
+    const listEl = document.getElementById('selectedRecipientsList');
+    if (!listEl) return;
+
+    if (selectedRecipients.length === 0) {
+        listEl.innerHTML = '<span class="recipient-empty-hint">Tast nummer og trykk + for å sende til flere</span>';
+        return;
+    }
+
+    listEl.innerHTML = selectedRecipients.map((station) => {
+        const profile = directoryProfiles.find((p) => p.station_id === station);
+        const name = profile ? profile.name.toUpperCase() : '—';
+        return `<span class="recipient-chip"><span class="recipient-chip-text">NR ${escapeHtml(station)} · ${escapeHtml(name)}</span><button type="button" class="recipient-chip-remove" onclick="removeRecipient('${escapeHtml(station)}')" aria-label="Fjern mottaker"><i class="fa-solid fa-xmark"></i></button></span>`;
+    }).join('');
+}
+
+function updateAddRecipientButton() {
+    const addBtn = document.getElementById('addRecipientBtn');
+    if (!addBtn) return;
+    const current = getCurrentDialMatchProfile();
+    const canAdd = !!current
+        && !selectedRecipients.includes(current.station_id)
+        && selectedRecipients.length < MAX_RECIPIENTS;
+    addBtn.disabled = !canAdd;
+}
+
+function addCurrentRecipient() {
+    const current = getCurrentDialMatchProfile();
+    if (!current) {
+        showMsgBox('INGEN MOTTAKER', 'Tast et gyldig faxnummer før du legger til en mottaker.');
+        return;
+    }
+    if (selectedRecipients.includes(current.station_id)) {
+        showMsgBox('ALLEREDE LAGT TIL', `NR ${current.station_id} er allerede en mottaker.`);
+        return;
+    }
+    if (selectedRecipients.length >= MAX_RECIPIENTS) {
+        showMsgBox('MAKS MOTTAKERE', `Du kan sende til maks ${MAX_RECIPIENTS} mottakere samtidig.`);
+        return;
+    }
+
+    selectedRecipients.push(current.station_id);
+    dialedBuffer = "";
+    activeRecipientStation = null;
+    playRetroSound('key');
+    updateUIVariables();
+}
+
+function removeRecipient(station) {
+    selectedRecipients = selectedRecipients.filter((s) => s !== station);
+    playRetroSound('key');
+    updateUIVariables();
+}
+
+function goToComposeFromDialer() {
+    if (getAllRecipientProfiles().length === 0) {
+        showMsgBox('INGEN MOTTAKER', 'Tast et faxnummer eller legg til minst én mottaker først.');
+        return;
+    }
+    playRetroSound('key');
+    setAppScreen('compose', { skipFaxRefresh: true });
 }
 
 function showPhoneBellAlert() {
@@ -1599,12 +1693,9 @@ async function startTransmission() {
 
     updateSendButtonState();
 
-    const match = resolveDialMatch(dialedBuffer);
-    if (match.status === 'connected' && match.profile && match.profile.id !== currentProfile.id) {
-        activeRecipientStation = match.profile.station_id;
-    }
+    const recipients = getAllRecipientProfiles();
 
-    if (!activeRecipientStation) {
+    if (recipients.length === 0) {
         showMsgBox("INGEN MOTTAKER", "Velg mottaker først: klikk et navn i telefonkatalogen, eller tast faxnummer på tastaturet til venstre.");
         return;
     }
@@ -1617,7 +1708,6 @@ async function startTransmission() {
     const inputEl = document.getElementById("faxContentInput");
     const text = inputEl.value.trim().toUpperCase();
     const imageUrl = pendingFaxImageUrl;
-    const destProfile = match.profile || directoryProfiles.find((p) => p.station_id === activeRecipientStation);
 
     if (!text && !imageUrl) {
         showMsgBox("BLANK SHEET DETECTED", "AVBRUTT: OPTISK SKANNER DETEKTERTE ET BLANKT ARK. SKRIV MELDE-TEKST ELLER LEGG VED ET BILDE FØR DU MATER INN ARKET.");
@@ -1629,11 +1719,6 @@ async function startTransmission() {
         return;
     }
 
-    if (!destProfile) {
-        showMsgBox("INGEN MOTTAKER", "Kunne ikke finne mottaker i katalogen.");
-        return;
-    }
-
     const sendBtn = document.getElementById('startTransmissionBtn');
     isFaxMachineBusy = true;
     if (sendBtn) sendBtn.disabled = true;
@@ -1642,27 +1727,34 @@ async function startTransmission() {
 
     try {
         initAudio();
-        await runFaxSendAnimation(text, destProfile, imageUrl);
+        await runFaxSendAnimation(text, recipients, imageUrl);
 
         const sb = getSupabase();
-        const insertPayload = {
-            sender_user_id: currentProfile.id,
-            recipient_station_id: activeRecipientStation,
-            content: text || '[BILDE]',
-            stack_order: Date.now()
-        };
-        if (imageUrl) insertPayload.image_url = imageUrl;
+        const stackOrder = Date.now();
+        const rows = recipients.map((profile) => {
+            const row = {
+                sender_user_id: currentProfile.id,
+                recipient_station_id: profile.station_id,
+                content: text || '[BILDE]',
+                stack_order: stackOrder
+            };
+            if (imageUrl) row.image_url = imageUrl;
+            return row;
+        });
 
-        const { error } = await sb.from('faxes').insert(insertPayload);
-
-        inputEl.value = "";
-        clearFaxImage();
-        updateSendButtonState();
+        const { error } = await sb.from('faxes').insert(rows);
 
         if (error) {
             showMsgBox('TRANSMISSION FEIL', error.message);
             return;
         }
+
+        inputEl.value = "";
+        clearFaxImage();
+        selectedRecipients = [];
+        dialedBuffer = "";
+        activeRecipientStation = null;
+        updateUIVariables();
 
         paperCapacity--;
         updatePaperGauge();
@@ -1671,7 +1763,10 @@ async function startTransmission() {
             await promptRefillPaper();
         }
 
-        showMsgBox('FAX er Sendt', 'Ingen feilmelding på ISDN/WAP-linje99');
+        const sentMsg = recipients.length > 1
+            ? `Sendt til ${recipients.length} mottakere. Ingen feilmelding på ISDN/WAP-linje99`
+            : 'Ingen feilmelding på ISDN/WAP-linje99';
+        showMsgBox('FAX er Sendt', sentMsg);
         setAppScreen('compose', { skipFaxRefresh: true });
         await refreshIncomingFaxes();
     } finally {
