@@ -155,13 +155,13 @@ set name = public.email_local_name(u.email),
 from auth.users u
 where u.id = p.id;
 
--- Storage: opprett bucket "fax-attachments" (Public) i Dashboard, deretter kjør:
--- insert into storage.buckets (id, name, public) values ('fax-attachments', 'fax-attachments', true) on conflict do nothing;
+-- Storage: opprett bucket "fax-attachment" (Public) i Dashboard, deretter kjør:
+-- insert into storage.buckets (id, name, public) values ('fax-attachment', 'fax-attachment', true) on conflict do nothing;
 --
--- drop policy if exists "fax_attachments_read" on storage.objects;
--- create policy "fax_attachments_read" on storage.objects for select to public
---   using (bucket_id = 'fax-attachments');
+-- drop policy if exists "fax_attachment_read" on storage.objects;
+-- create policy "fax_attachment_read" on storage.objects for select to public
+--   using (bucket_id = 'fax-attachment');
 --
--- drop policy if exists "fax_attachments_upload" on storage.objects;
--- create policy "fax_attachments_upload" on storage.objects for insert to authenticated
---   with check (bucket_id = 'fax-attachments' and (storage.foldername(name))[1] = auth.uid()::text);
+-- drop policy if exists "fax_attachment_upload" on storage.objects;
+-- create policy "fax_attachment_upload" on storage.objects for insert to authenticated
+--   with check (bucket_id = 'fax-attachment' and (storage.foldername(name))[1] = auth.uid()::text);

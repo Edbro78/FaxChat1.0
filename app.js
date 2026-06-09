@@ -1356,14 +1356,14 @@ async function uploadFaxImage(blob) {
     const contentType = blob.type || 'image/jpeg';
     const ext = contentType === 'image/png' ? 'png' : 'jpg';
     const fileName = `${currentProfile.id}/${Date.now()}.${ext}`;
-    const { error } = await sb.storage.from('fax-attachments').upload(fileName, blob, {
+    const { error } = await sb.storage.from('fax-attachment').upload(fileName, blob, {
         contentType,
         upsert: false
     });
 
     if (error) throw error;
 
-    const { data } = sb.storage.from('fax-attachments').getPublicUrl(fileName);
+    const { data } = sb.storage.from('fax-attachment').getPublicUrl(fileName);
     return data.publicUrl;
 }
 
