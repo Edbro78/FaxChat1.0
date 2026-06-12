@@ -326,8 +326,11 @@ body,
 .compose-attach-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.35rem;
-    padding: 0.35rem 0.6rem;
+    padding: calc(0.35rem * 1.1) calc(0.6rem * 1.7);
+    min-width: calc(4.5rem * 1.7);
+    min-height: calc(1.75rem * 1.1);
     border: 2px solid #a8a29e;
     background: linear-gradient(180deg, #f5f0e6 0%, #e8e0d0 100%);
     color: #44403c;
