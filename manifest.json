@@ -1,12 +1,12 @@
 {
   "id": "/",
   "name": "FaxChat",
-  "short_name": "Fax",
+  "short_name": "FAX",
   "description": "Retro analog fax-terminal",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#2b3a4a",
+  "background_color": "#ffffff",
   "theme_color": "#2b3a4a",
   "orientation": "portrait",
   "icons": [

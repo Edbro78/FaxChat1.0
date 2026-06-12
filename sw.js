@@ -1,6 +1,6 @@
-/* FaxChat service worker v7 — pushvarsler (PWA fra hjemskjerm) */
+/* FaxChat service worker v8 — pushvarsler (PWA fra hjemskjerm) */
 
-const SW_VERSION = 7;
+const SW_VERSION = 8;
 
 self.addEventListener('install', (event) => {
     event.waitUntil(self.skipWaiting());

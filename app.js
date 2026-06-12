@@ -239,7 +239,7 @@ function urlBase64ToUint8Array(base64String) {
     return output;
 }
 
-const SW_CACHE_BUST = 'v=7';
+const SW_CACHE_BUST = 'v=8';
 
 async function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return null;
@@ -524,6 +524,14 @@ const PAPER_MAX = 6;
 const MESSAGE_MAX_LENGTH = 50;
 const FAX_SEND_PAUSE_MS = 2600;
 const FAX_SEND_FEED_MS = 5400;
+const PAPER_JAM_INTERVAL = 10;
+const FAX_WAV = {
+    outOfPaper: 'feilmelding fax.wav',
+    shredder: 'paper shredder.wav',
+    print: 'print av fax.wav',
+    sending: 'sending fax.wav',
+    paperJam: 'paper jam.wav',
+};
 let isFaxMachineBusy = false;
 let faxSoundCleanup = [];
 
@@ -532,6 +540,23 @@ function clearFaxSoundCleanup() {
         try { fn(); } catch (_) { /* ignore */ }
     });
     faxSoundCleanup = [];
+}
+
+function playFaxWav(fileName, { managed = true } = {}) {
+    initAudio();
+    if (managed) clearFaxSoundCleanup();
+    if (audioCtx?.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+    }
+    const audio = new Audio(encodeURI(`lyder/${fileName}`));
+    audio.play().catch(() => {});
+    if (managed) {
+        faxSoundCleanup.push(() => {
+            audio.pause();
+            audio.currentTime = 0;
+        });
+    }
+    return audio;
 }
 
 /** Klassisk 8-sekunders faxlyd: handshake + modem + mekanisk surr */
@@ -820,7 +845,7 @@ async function runFaxReceiveAnimation(fax) {
     const senderName = senderProfile?.name || 'UKJENT';
 
     showFaxMachineOverlay('receive', 'MOTTAR...', `INNKOMMENDE FRA ${senderName.toUpperCase()} — SKRIVER UT ARK...`);
-    playFaxMachineCycle(FAX_RECEIVE_MS);
+    playFaxWav(FAX_WAV.print);
 
     const paper = document.getElementById('faxEmergingPaper');
     const cover = document.getElementById('faxEmergingCover');
@@ -868,7 +893,30 @@ async function runFaxReceiveAnimation(fax) {
     return true;
 }
 
-async function runFaxSendAnimation(text, destProfiles, imageUrl = null) {
+function faxSendCountStorageKey() {
+    return `faxchat_send_count_${currentProfile?.station_id || 'unknown'}`;
+}
+
+function getFaxSendCount() {
+    try {
+        const n = parseInt(localStorage.getItem(faxSendCountStorageKey()), 10);
+        return Number.isFinite(n) && n >= 0 ? n : 0;
+    } catch {
+        return 0;
+    }
+}
+
+function incrementFaxSendCount() {
+    try {
+        localStorage.setItem(faxSendCountStorageKey(), String(getFaxSendCount() + 1));
+    } catch { /* ignore */ }
+}
+
+function willTriggerPaperJam() {
+    return (getFaxSendCount() + 1) % PAPER_JAM_INTERVAL === 0;
+}
+
+async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simulatePaperJam = false } = {}) {
     const recipients = Array.isArray(destProfiles) ? destProfiles : [destProfiles];
     const firstDest = recipients[0];
     const isMulti = recipients.length > 1;
@@ -889,7 +937,7 @@ async function runFaxSendAnimation(text, destProfiles, imageUrl = null) {
         'KLAR',
         `SJEKK ARKET — ${destSummary}`
     );
-    playFaxMachineCycle(FAX_CYCLE_MS);
+    playFaxWav(FAX_WAV.sending);
 
     if (destLabel) {
         destLabel.textContent = isMulti
@@ -903,9 +951,27 @@ async function runFaxSendAnimation(text, destProfiles, imageUrl = null) {
 
     await delay(FAX_SEND_PAUSE_MS);
 
+    if (simulatePaperJam) {
+        clearFaxSoundCleanup();
+        statusEl.innerText = 'FEIL';
+        hintEl.innerText = 'PAPIR HAR SATT SEG FAST — STOPPET';
+        if (lcd) lcd.textContent = 'PAPER JAM';
+
+        const recovered = await promptPaperJamRecovery();
+        if (!recovered) {
+            hideFaxMachineOverlay();
+            clearFaxSoundCleanup();
+            return false;
+        }
+
+        playFaxWav(FAX_WAV.sending);
+    }
+
     statusEl.innerText = 'SENDER...';
-    hintEl.innerText = 'MATER ARK INN I FAXMASKINEN...';
-    if (lcd) lcd.textContent = 'SENDING';
+    hintEl.innerText = simulatePaperJam
+        ? 'SENDER PÅ NYTT ETTER PAPIRFJERNING...'
+        : 'MATER ARK INN I FAXMASKINEN...';
+    if (lcd) lcd.textContent = simulatePaperJam ? 'RETRY' : 'SENDING';
     setFaxMachineTransmitting(true);
     intakeGlow?.classList.add('active');
     rollers?.classList.add('active');
@@ -922,6 +988,7 @@ async function runFaxSendAnimation(text, destProfiles, imageUrl = null) {
     sendSheet.classList.add('phase-pause');
     hideFaxMachineOverlay();
     clearFaxSoundCleanup();
+    return true;
 }
 
 function syncIncomingFromFetched(fetchedList) {
@@ -1407,6 +1474,7 @@ function showConfirmBox(title, text, onYes, onNo) {
 }
 
 function promptRefillPaper() {
+    playFaxWav(FAX_WAV.outOfPaper, { managed: false });
     return new Promise((resolve) => {
         showConfirmBox(
             'TOMT FOR PAPIR',
@@ -1415,6 +1483,18 @@ function promptRefillPaper() {
                 refillPaperToFull();
                 resolve(true);
             },
+            () => resolve(false)
+        );
+    });
+}
+
+function promptPaperJamRecovery() {
+    playFaxWav(FAX_WAV.paperJam, { managed: false });
+    return new Promise((resolve) => {
+        showConfirmBox(
+            'PAPIR HAR SATT SEG FAST',
+            'Ta ut det fastkjørte arket fra faxmaskinen. Bekreft når papiret er fjernet — faxen sendes automatisk på nytt.',
+            () => resolve(true),
             () => resolve(false)
         );
     });
@@ -1795,7 +1875,7 @@ async function runShredAnimation(fax) {
     document.getElementById('shredderStatus').innerText = 'AKTIV';
     document.getElementById('shredderHint').innerText = 'MAKULERER KONFIDENSIELT ARK — 6 SEK';
 
-    playFaxMachineCycle(FAX_SHRED_MS);
+    playFaxWav(FAX_WAV.shredder);
 
     await delay(350);
     paper?.classList.add('phase-feed');
@@ -1874,9 +1954,15 @@ async function startTransmission() {
 
     setAppScreen('send', { skipFaxRefresh: true });
 
+    const simulatePaperJam = willTriggerPaperJam();
+
     try {
         initAudio();
-        await runFaxSendAnimation(text, recipients, imageUrl);
+        const sendOk = await runFaxSendAnimation(text, recipients, imageUrl, { simulatePaperJam });
+        if (!sendOk) {
+            setAppScreen('compose', { skipFaxRefresh: true });
+            return;
+        }
 
         const sb = getSupabase();
         const stackOrder = Date.now();
@@ -1897,6 +1983,8 @@ async function startTransmission() {
             showMsgBox('TRANSMISSION FEIL', error.message);
             return;
         }
+
+        incrementFaxSendCount();
 
         inputEl.value = "";
         clearFaxImage();
