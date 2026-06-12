@@ -239,7 +239,7 @@ function urlBase64ToUint8Array(base64String) {
     return output;
 }
 
-const SW_CACHE_BUST = 'v=6';
+const SW_CACHE_BUST = 'v=7';
 
 async function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return null;
