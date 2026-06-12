@@ -87,15 +87,145 @@ async function bootstrapAuth() {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm').addEventListener('submit', handleLoginSubmit);
+    initPwaInstallPrompt();
     registerServiceWorker();
     bootstrapAuth();
 });
 
-// --- WEB PUSH (forutsetter PWA fra hjemskjerm) ---
+// --- PWA + WEB PUSH (hjemskjerm på iOS; Android Chrome støtter også push i fane) ---
+
+let deferredInstallPrompt = null;
+
+const PWA_INSTALL_DISMISS_KEY = 'faxchat_install_dismissed';
+const PWA_PUSH_DISMISS_KEY = 'faxchat_push_declined';
+const PWA_PUSH_DENIED_DISMISS_KEY = 'faxchat_push_denied_dismissed';
+
+function isIosDevice() {
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+function isAndroidDevice() {
+    return /Android/i.test(navigator.userAgent);
+}
 
 function isStandalonePwa() {
     return window.matchMedia('(display-mode: standalone)').matches
-        || window.navigator.standalone === true;
+        || window.matchMedia('(display-mode: fullscreen)').matches
+        || window.navigator.standalone === true
+        || document.referrer.startsWith('android-app://');
+}
+
+function canUsePush() {
+    if (!('PushManager' in window) || !('Notification' in window)) return false;
+    if (isIosDevice()) return isStandalonePwa();
+    return true;
+}
+
+function initPwaInstallPrompt() {
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        updatePwaBanners();
+    });
+
+    window.addEventListener('appinstalled', () => {
+        deferredInstallPrompt = null;
+        localStorage.removeItem(PWA_INSTALL_DISMISS_KEY);
+        updatePwaBanners();
+        if (currentProfile) {
+            setupPushNotifications({ requestNow: Notification.permission === 'granted' });
+        }
+    });
+}
+
+function shouldShowInstallBanner() {
+    if (isStandalonePwa()) return false;
+    if (localStorage.getItem(PWA_INSTALL_DISMISS_KEY) === '1') return false;
+    return isIosDevice() || isAndroidDevice() || !!deferredInstallPrompt;
+}
+
+function shouldShowPushBanner() {
+    if (!canUsePush()) return false;
+    if (Notification.permission !== 'default') return false;
+    if (localStorage.getItem(PWA_PUSH_DISMISS_KEY) === '1') return false;
+    if (isIosDevice() && !isStandalonePwa()) return false;
+    return true;
+}
+
+function shouldShowPushDeniedBanner() {
+    if (!canUsePush()) return false;
+    if (Notification.permission !== 'denied') return false;
+    if (localStorage.getItem(PWA_PUSH_DENIED_DISMISS_KEY) === '1') return false;
+    return true;
+}
+
+function updatePwaBanners() {
+    const installBanner = document.getElementById('pwaInstallBanner');
+    const pushBanner = document.getElementById('pushSetupBanner');
+    const pushDeniedBanner = document.getElementById('pushDeniedBanner');
+    const installHint = document.getElementById('pwaInstallHint');
+    const installBtn = document.getElementById('pwaInstallBtn');
+
+    const showInstall = shouldShowInstallBanner();
+    const showPush = shouldShowPushBanner() && !showInstall;
+    const showDenied = shouldShowPushDeniedBanner() && !showInstall && !showPush;
+
+    installBanner?.classList.toggle('hidden', !showInstall);
+    pushBanner?.classList.toggle('hidden', !showPush);
+    pushDeniedBanner?.classList.toggle('hidden', !showDenied);
+
+    if (installHint) {
+        if (deferredInstallPrompt) {
+            installHint.textContent = 'Trykk INSTALLER APP for å legge FaxChat på hjemskjermen med push-varsler.';
+        } else if (isAndroidDevice()) {
+            installHint.textContent = 'Chrome → ⋮ → «Installer app» eller «Legg til på startsiden». Ikke bare bokmerke.';
+        } else if (isIosDevice()) {
+            installHint.textContent = 'Safari → Del → «Legg til på Hjem-skjerm». Kreves for push-varsler på iPhone.';
+        } else {
+            installHint.textContent = 'Installer appen på hjemskjermen for best opplevelse og push-varsler.';
+        }
+    }
+
+    if (installBtn) {
+        installBtn.textContent = deferredInstallPrompt ? 'INSTALLER APP' : 'SLIK INSTALLERER DU';
+    }
+}
+
+function dismissInstallBanner() {
+    localStorage.setItem(PWA_INSTALL_DISMISS_KEY, '1');
+    updatePwaBanners();
+}
+
+async function promptPwaInstall() {
+    if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice.catch(() => null);
+        deferredInstallPrompt = null;
+        updatePwaBanners();
+        return;
+    }
+    showMsgBox(
+        'INSTALLER FAXCHAT',
+        isAndroidDevice()
+            ? 'Chrome → ⋮ (meny) → «Installer app» eller «Legg til på startsiden». Velg installer — ikke bare en snarvei.'
+            : 'Bruk nettleserens «Legg til på Hjem-skjerm» / «Installer app» for å få ikon og push-varsler.'
+    );
+}
+
+function dismissPushBanner() {
+    localStorage.setItem(PWA_PUSH_DISMISS_KEY, '1');
+    updatePwaBanners();
+}
+
+function dismissPushDeniedBanner() {
+    localStorage.setItem(PWA_PUSH_DENIED_DISMISS_KEY, '1');
+    updatePwaBanners();
+}
+
+async function acceptPushSetup() {
+    localStorage.removeItem(PWA_PUSH_DISMISS_KEY);
+    await setupPushNotifications({ requestNow: true });
+    updatePwaBanners();
 }
 
 function urlBase64ToUint8Array(base64String) {
@@ -126,20 +256,30 @@ async function registerServiceWorker() {
     }
 }
 
-async function setupPushNotifications() {
-    if (!isStandalonePwa()) return;
+async function setupPushNotifications(options = {}) {
+    if (!canUsePush()) {
+        updatePwaBanners();
+        return;
+    }
+
     const vapidPublic = window.FAXCHAT_PUSH?.vapidPublicKey;
     if (!vapidPublic) return;
-    if (!('PushManager' in window) || !('Notification' in window)) return;
-
-    await registerServiceWorker();
-    const reg = await navigator.serviceWorker.ready;
 
     let permission = Notification.permission;
     if (permission === 'default') {
+        if (!options.requestNow) {
+            updatePwaBanners();
+            return;
+        }
         permission = await Notification.requestPermission();
     }
-    if (permission !== 'granted') return;
+    if (permission !== 'granted') {
+        updatePwaBanners();
+        return;
+    }
+
+    await registerServiceWorker();
+    const reg = await navigator.serviceWorker.ready;
 
     const { data: { user } } = await getSupabase().auth.getUser();
     if (!user) return;
@@ -164,6 +304,8 @@ async function setupPushNotifications() {
     if (error) {
         console.warn('Kunne ikke lagre push-abonnement:', error.message);
     }
+
+    updatePwaBanners();
 }
 
 // --- SOUND SYNTHESIS ENGINE (Synthesized via Web Audio API) ---
@@ -862,7 +1004,8 @@ async function initFaxApp() {
     renderKartotek();
     setAppScreen('start', { skipFaxRefresh: true });
     await refreshIncomingFaxes();
-    await setupPushNotifications();
+    await setupPushNotifications({ requestNow: Notification.permission === 'granted' });
+    updatePwaBanners();
 
     if (!initFaxApp.visibilityHook) {
         document.addEventListener('visibilitychange', onAppVisibilityChange);
@@ -873,6 +1016,8 @@ async function initFaxApp() {
 function onAppVisibilityChange() {
     if (document.visibilityState !== 'visible' || !currentProfile || isFaxMachineBusy) return;
     refreshIncomingFaxes();
+    setupPushNotifications({ requestNow: Notification.permission === 'granted' });
+    updatePwaBanners();
 }
 
 async function loadDirectory() {
@@ -1380,6 +1525,10 @@ function setAppScreen(screen, options = {}) {
 
     if (screen === 'compose' || screen === 'send' || screen === 'dialer') {
         updateUIVariables();
+    }
+
+    if (screen === 'start') {
+        updatePwaBanners();
     }
 
 }

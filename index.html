@@ -9,6 +9,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="FaxChat">
     <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/fax-machine.png">
     <title>FaxChat v1.2 - Retro Analog Workstation</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -125,6 +126,29 @@
                     <button type="button" id="startIncomingAction" onclick="openInboxForPrint()" class="start-incoming-link hidden">
                         <span id="startIncomingActionText">NY FAX MOTTATT — GÅ TIL PRINT</span>
                     </button>
+                    <div id="pwaInstallBanner" class="pwa-setup-banner hidden" role="region" aria-label="Installer app">
+                        <p class="pwa-setup-banner-title"><i class="fa-solid fa-mobile-screen"></i> LEGG FAXCHAT PÅ HJEMSKJERM</p>
+                        <p id="pwaInstallHint" class="pwa-setup-banner-text">For push-varsler: installer appen (ikke bare bokmerke).</p>
+                        <div class="pwa-setup-banner-actions">
+                            <button type="button" id="pwaInstallBtn" onclick="promptPwaInstall()" class="pwa-setup-btn pwa-setup-btn--primary">INSTALLER APP</button>
+                            <button type="button" onclick="dismissInstallBanner()" class="pwa-setup-btn">SENERE</button>
+                        </div>
+                    </div>
+                    <div id="pushSetupBanner" class="pwa-setup-banner hidden" role="region" aria-label="Push-varsler">
+                        <p class="pwa-setup-banner-title"><i class="fa-solid fa-bell"></i> FAX-VARSLER</p>
+                        <p id="pushSetupHint" class="pwa-setup-banner-text">Vil du få varsel når du mottar en ny fax?</p>
+                        <div class="pwa-setup-banner-actions">
+                            <button type="button" onclick="acceptPushSetup()" class="pwa-setup-btn pwa-setup-btn--primary">JA, VARSEL MEG</button>
+                            <button type="button" onclick="dismissPushBanner()" class="pwa-setup-btn">NEI</button>
+                        </div>
+                    </div>
+                    <div id="pushDeniedBanner" class="pwa-setup-banner pwa-setup-banner--warn hidden" role="region" aria-label="Varsler avslått">
+                        <p class="pwa-setup-banner-title"><i class="fa-solid fa-triangle-exclamation"></i> VARSLER ER AV</p>
+                        <p class="pwa-setup-banner-text">Slå på varsler for FaxChat i telefonens innstillinger (Apper → FaxChat → Varsler). På Samsung: sjekk også at batterioptimalisering er av for appen.</p>
+                        <div class="pwa-setup-banner-actions">
+                            <button type="button" onclick="dismissPushDeniedBanner()" class="pwa-setup-btn">OK</button>
+                        </div>
+                    </div>
                 </div>
             </section>
 
