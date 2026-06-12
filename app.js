@@ -52,6 +52,7 @@ async function handleLoginSubmit(event) {
             throw new Error('Innlogging OK, men profil finnes ikke. Kjør schema.sql i Supabase SQL Editor (nederst er engangs-fix).');
         }
         initAudio();
+        await unlockFaxAudio();
         await initFaxApp();
         showApp();
     } catch (e) {
@@ -76,6 +77,7 @@ async function bootstrapAuth() {
         currentProfile = await loadProfile();
         if (currentProfile) {
             initAudio();
+            await unlockFaxAudio();
             await initFaxApp();
             showApp();
             return;
@@ -87,6 +89,7 @@ async function bootstrapAuth() {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm').addEventListener('submit', handleLoginSubmit);
+    installFaxAudioUnlock();
     initPwaInstallPrompt();
     registerServiceWorker();
     bootstrapAuth();
@@ -310,6 +313,17 @@ async function setupPushNotifications(options = {}) {
 
 // --- SOUND SYNTHESIS ENGINE (Synthesized via Web Audio API) ---
 let audioCtx = null;
+/** Alle WAV-filer må være PCM 16-bit mono 44100 Hz (som print av fax.wav). */
+const FAX_WAV = {
+    outOfPaper: 'feilmelding fax.wav',
+    shredder: 'paper shredder.wav',
+    print: 'print av fax.wav',
+    sending: 'sending fax.wav',
+    paperJam: 'paper jam.wav',
+};
+const faxBufferCache = new Map();
+let faxBuffersPreloadPromise = null;
+let faxSoundCleanup = [];
 
 function initAudio() {
     if (!audioCtx) {
@@ -317,8 +331,144 @@ function initAudio() {
     }
 }
 
+const FAX_SOUND_CACHE_VERSION = '3';
+
+function faxSoundUrl(fileName) {
+    const url = new URL(`lyder/${encodeURIComponent(fileName)}`, document.baseURI);
+    url.searchParams.set('v', FAX_SOUND_CACHE_VERSION);
+    return url.href;
+}
+
+function clearFaxSoundCleanup() {
+    faxSoundCleanup.forEach((fn) => {
+        try { fn(); } catch (_) { /* ignore */ }
+    });
+    faxSoundCleanup = [];
+}
+
+async function loadFaxBuffer(fileName) {
+    if (faxBufferCache.has(fileName)) return faxBufferCache.get(fileName);
+    initAudio();
+    const response = await fetch(faxSoundUrl(fileName));
+    if (!response.ok) throw new Error(`${fileName}: HTTP ${response.status}`);
+    const arrayBuffer = await response.arrayBuffer();
+    let audioBuffer;
+    try {
+        audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    } catch (err) {
+        faxBufferCache.delete(fileName);
+        throw new Error(`${fileName}: decode feilet — bruk PCM 16-bit mono 44100 Hz (${err.message})`);
+    }
+    faxBufferCache.set(fileName, audioBuffer);
+    return audioBuffer;
+}
+
+function preloadFaxBuffers() {
+    if (!faxBuffersPreloadPromise) {
+        faxBuffersPreloadPromise = Promise.all(
+            Object.values(FAX_WAV).map((fileName) =>
+                loadFaxBuffer(fileName).catch((err) => {
+                    console.warn('Faxlyd ikke lastet:', fileName, err);
+                    return null;
+                })
+            )
+        );
+    }
+    return faxBuffersPreloadPromise;
+}
+
+async function unlockFaxAudio() {
+    initAudio();
+    if (audioCtx?.state === 'suspended') {
+        try { await audioCtx.resume(); } catch { /* ignore */ }
+    }
+    await preloadFaxBuffers();
+}
+
+async function ensureFaxBuffer(fileName) {
+    if (faxBufferCache.has(fileName)) return faxBufferCache.get(fileName);
+
+    try {
+        return await loadFaxBuffer(fileName);
+    } catch (firstErr) {
+        faxBufferCache.delete(fileName);
+        console.warn('Faxlyd lastefeil:', fileName, firstErr);
+
+        if (fileName === FAX_WAV.sending) {
+            try {
+                initAudio();
+                const bustUrl = `${faxSoundUrl(fileName)}&t=${Date.now()}`;
+                const response = await fetch(bustUrl);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const audioBuffer = await audioCtx.decodeAudioData(await response.arrayBuffer());
+                faxBufferCache.set(fileName, audioBuffer);
+                return audioBuffer;
+            } catch (retryErr) {
+                console.warn('Sending-lyd retry feilet:', retryErr);
+                if (faxBufferCache.has(FAX_WAV.print)) {
+                    return faxBufferCache.get(FAX_WAV.print);
+                }
+            }
+        }
+
+        throw firstErr;
+    }
+}
+
+function startFaxWavPlayback(buffer, { managed = true } = {}) {
+    if (!audioCtx || !buffer) return null;
+    if (managed) clearFaxSoundCleanup();
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    const gain = audioCtx.createGain();
+    gain.gain.value = 1;
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
+    source.start(0);
+
+    if (managed) {
+        faxSoundCleanup.push(() => {
+            try { source.stop(); } catch { /* ignore */ }
+        });
+    }
+    return source;
+}
+
+/** Identisk avspilling for alle fax-lyder: resume kontekst, last buffer, spill. */
+async function playFaxSound(fileName, { managed = true } = {}) {
+    await unlockFaxAudio();
+    if (!audioCtx) return null;
+
+    if (audioCtx.state === 'suspended') {
+        try { await audioCtx.resume(); } catch { /* ignore */ }
+    }
+
+    let buffer;
+    try {
+        buffer = await ensureFaxBuffer(fileName);
+    } catch (err) {
+        console.warn('Kunne ikke spille faxlyd:', fileName, err);
+        return null;
+    }
+
+    try {
+        return startFaxWavPlayback(buffer, { managed });
+    } catch (err) {
+        console.warn('Avspilling feilet:', fileName, err);
+        return null;
+    }
+}
+
+function installFaxAudioUnlock() {
+    const unlock = () => { void unlockFaxAudio(); };
+    document.addEventListener('pointerdown', unlock, { once: true, capture: true });
+    document.addEventListener('keydown', unlock, { once: true, capture: true });
+}
+
 function playRetroSound(type, f1 = null, f2 = null) {
     initAudio();
+    void unlockFaxAudio();
     if (!audioCtx) return;
 
     const now = audioCtx.currentTime;
@@ -525,39 +675,7 @@ const MESSAGE_MAX_LENGTH = 50;
 const FAX_SEND_PAUSE_MS = 2600;
 const FAX_SEND_FEED_MS = 5400;
 const PAPER_JAM_INTERVAL = 10;
-const FAX_WAV = {
-    outOfPaper: 'feilmelding fax.wav',
-    shredder: 'paper shredder.wav',
-    print: 'print av fax.wav',
-    sending: 'sending fax.wav',
-    paperJam: 'paper jam.wav',
-};
 let isFaxMachineBusy = false;
-let faxSoundCleanup = [];
-
-function clearFaxSoundCleanup() {
-    faxSoundCleanup.forEach((fn) => {
-        try { fn(); } catch (_) { /* ignore */ }
-    });
-    faxSoundCleanup = [];
-}
-
-function playFaxWav(fileName, { managed = true } = {}) {
-    initAudio();
-    if (managed) clearFaxSoundCleanup();
-    if (audioCtx?.state === 'suspended') {
-        audioCtx.resume().catch(() => {});
-    }
-    const audio = new Audio(encodeURI(`lyder/${fileName}`));
-    audio.play().catch(() => {});
-    if (managed) {
-        faxSoundCleanup.push(() => {
-            audio.pause();
-            audio.currentTime = 0;
-        });
-    }
-    return audio;
-}
 
 /** Klassisk 8-sekunders faxlyd: handshake + modem + mekanisk surr */
 function playFaxMachineCycle(durationMs = FAX_CYCLE_MS) {
@@ -845,7 +963,7 @@ async function runFaxReceiveAnimation(fax) {
     const senderName = senderProfile?.name || 'UKJENT';
 
     showFaxMachineOverlay('receive', 'MOTTAR...', `INNKOMMENDE FRA ${senderName.toUpperCase()} — SKRIVER UT ARK...`);
-    playFaxWav(FAX_WAV.print);
+    await playFaxSound(FAX_WAV.print);
 
     const paper = document.getElementById('faxEmergingPaper');
     const cover = document.getElementById('faxEmergingCover');
@@ -937,7 +1055,7 @@ async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simula
         'KLAR',
         `SJEKK ARKET — ${destSummary}`
     );
-    playFaxWav(FAX_WAV.sending);
+    await playFaxSound(FAX_WAV.sending);
 
     if (destLabel) {
         destLabel.textContent = isMulti
@@ -964,7 +1082,7 @@ async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simula
             return false;
         }
 
-        playFaxWav(FAX_WAV.sending);
+        await playFaxSound(FAX_WAV.sending);
     }
 
     statusEl.innerText = 'SENDER...';
@@ -1078,6 +1196,8 @@ async function initFaxApp() {
         document.addEventListener('visibilitychange', onAppVisibilityChange);
         initFaxApp.visibilityHook = true;
     }
+
+    await unlockFaxAudio();
 }
 
 function onAppVisibilityChange() {
@@ -1473,8 +1593,8 @@ function showConfirmBox(title, text, onYes, onNo) {
     playRetroSound('dtmf', 697, 1209);
 }
 
-function promptRefillPaper() {
-    playFaxWav(FAX_WAV.outOfPaper, { managed: false });
+async function promptRefillPaper() {
+    await playFaxSound(FAX_WAV.outOfPaper, { managed: false });
     return new Promise((resolve) => {
         showConfirmBox(
             'TOMT FOR PAPIR',
@@ -1488,8 +1608,8 @@ function promptRefillPaper() {
     });
 }
 
-function promptPaperJamRecovery() {
-    playFaxWav(FAX_WAV.paperJam, { managed: false });
+async function promptPaperJamRecovery() {
+    await playFaxSound(FAX_WAV.paperJam, { managed: false });
     return new Promise((resolve) => {
         showConfirmBox(
             'PAPIR HAR SATT SEG FAST',
@@ -1875,7 +1995,7 @@ async function runShredAnimation(fax) {
     document.getElementById('shredderStatus').innerText = 'AKTIV';
     document.getElementById('shredderHint').innerText = 'MAKULERER KONFIDENSIELT ARK — 6 SEK';
 
-    playFaxWav(FAX_WAV.shredder);
+    await playFaxSound(FAX_WAV.shredder);
 
     await delay(350);
     paper?.classList.add('phase-feed');
@@ -1948,16 +2068,21 @@ async function startTransmission() {
         return;
     }
 
+    setAppScreen('send', { skipFaxRefresh: true });
+
+    initAudio();
+    if (audioCtx?.state === 'suspended') {
+        try { await audioCtx.resume(); } catch { /* ignore */ }
+    }
+    await unlockFaxAudio();
+
     const sendBtn = document.getElementById('startTransmissionBtn');
     isFaxMachineBusy = true;
     if (sendBtn) sendBtn.disabled = true;
 
-    setAppScreen('send', { skipFaxRefresh: true });
-
     const simulatePaperJam = willTriggerPaperJam();
 
     try {
-        initAudio();
         const sendOk = await runFaxSendAnimation(text, recipients, imageUrl, { simulatePaperJam });
         if (!sendOk) {
             setAppScreen('compose', { skipFaxRefresh: true });
