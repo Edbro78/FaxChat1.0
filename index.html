@@ -128,6 +128,13 @@
                     <button type="button" id="startIncomingAction" onclick="openInboxForPrint()" class="start-incoming-link hidden">
                         <span id="startIncomingActionText">NY FAX MOTTATT — GÅ TIL PRINT</span>
                     </button>
+                    <div id="startTonerBanner" class="pwa-setup-banner pwa-setup-banner--warn hidden" role="alert" aria-live="assertive">
+                        <p class="pwa-setup-banner-title"><i class="fa-solid fa-triangle-exclamation"></i> TOMT FOR TONER/BLEKK</p>
+                        <p class="pwa-setup-banner-text">Vil du etterfylle?</p>
+                        <div class="pwa-setup-banner-actions">
+                            <button type="button" onclick="confirmTonerRefill()" class="pwa-setup-btn pwa-setup-btn--primary">OK</button>
+                        </div>
+                    </div>
                     <div id="pwaInstallBanner" class="pwa-setup-banner hidden" role="region" aria-label="Installer app">
                         <p class="pwa-setup-banner-title"><i class="fa-solid fa-mobile-screen"></i> LEGG FAXCHAT PÅ HJEMSKJERM</p>
                         <p id="pwaInstallHint" class="pwa-setup-banner-text">For push-varsler: installer appen (ikke bare bokmerke).</p>
@@ -242,12 +249,16 @@
                                   onkeydown="playRetroSound('type')"
                                   oninput="updateSendButtonState()"
                                   style="background-color: #fafcf6;"></textarea>
-                        <div class="compose-attach-row flex items-center gap-2 mt-2 shrink-0">
+                        <div class="compose-attach-row flex items-center gap-2 mt-2 shrink-0 flex-wrap">
                             <label for="faxImageInput" class="compose-attach-btn" title="Legg ved bilde">
                                 <i class="fa-solid fa-paperclip"></i>
                                 <span class="compose-attach-label">BILDE</span>
                                 <input type="file" id="faxImageInput" accept="image/*" class="sr-only" onchange="handleFaxImageSelected(event)">
                             </label>
+                            <button type="button" onclick="openPenDrawModal()" class="compose-attach-btn" title="Skriv med penn">
+                                <i class="fa-solid fa-pen-nib"></i>
+                                <span class="compose-attach-label">PENN</span>
+                            </button>
                             <div id="faxImagePreview" class="compose-image-preview hidden">
                                 <img id="faxImagePreviewImg" alt="Vedlegg forhåndsvisning" class="compose-image-preview-img">
                                 <button type="button" onclick="clearFaxImage()" class="compose-image-remove" title="Fjern bilde" aria-label="Fjern bilde">
@@ -293,12 +304,21 @@
                                 </div>
                             </div>
                         </div>
+                        <button type="button" onclick="openPenDrawModal()" class="send-pen-btn send-pen-btn--hero btn-retro w-full max-w-xs py-3 text-sm font-bold font-mono mt-4">
+                            <i class="fa-solid fa-pen-nib"></i> Skriv med penn
+                        </button>
                         <p class="jitfl-idle-hint font-mono text-stone-600 text-center text-xs mt-3">Trykk send nedenfor</p>
                     </div>
                 </div>
                 <footer class="app-screen-footer flex-col gap-2 !items-stretch">
                     <p id="sendReadyHintSend" class="text-[10px] font-mono text-amber-800 text-center">—</p>
-                    <button type="button" id="startTransmissionBtn" onclick="startTransmission()" disabled
+                    <div id="sendPenPreview" class="send-pen-preview hidden">
+                        <img id="sendPenPreviewImg" alt="Håndtegnet vedlegg" class="send-pen-preview-img">
+                        <button type="button" onclick="clearFaxImage()" class="send-pen-preview-clear" title="Fjern tegning" aria-label="Fjern tegning">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <button type="button" id="startTransmissionBtn" onclick="startTransmissionFromClick()" disabled
                             class="btn-hardware-red w-full py-4 text-sm font-extrabold font-mono uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                         <i class="fa-solid fa-bolt"></i> SEND FAX
                     </button>
@@ -455,6 +475,21 @@
                 </div>
             </div>
             <p id="shredderHint" class="text-[10px] font-mono text-amber-500/90 mt-1 mb-1 text-center shrink-0 px-3 pb-safe">MATER ARK INN I MAKULERER...</p>
+        </div>
+    </div>
+
+    <div id="penDrawOverlay" class="pen-draw-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="penDrawTitle">
+        <div class="pen-draw-panel lcd-display scanlines">
+            <h2 id="penDrawTitle" class="pen-draw-title font-bold font-mono tracking-wider">SKRIV MED PENN</h2>
+            <p class="pen-draw-desc font-mono text-[11px] opacity-90">Signer eller tegn en skisse — sendes som dithered fax-vedlegg til mottaker.</p>
+            <div class="pen-draw-canvas-wrap bevel-in">
+                <canvas id="penDrawCanvas" class="pen-draw-canvas" width="560" height="200" aria-label="Tegnefelt"></canvas>
+            </div>
+            <div class="pen-draw-actions">
+                <button type="button" onclick="clearPenDrawCanvas()" class="btn-retro pen-draw-btn font-bold font-mono">TØM</button>
+                <button type="button" onclick="closePenDrawModal()" class="btn-retro pen-draw-btn font-bold font-mono">AVBRYT</button>
+                <button type="button" onclick="confirmPenDrawing()" class="btn-hardware-red pen-draw-btn font-bold font-mono">BRUK TEGNING</button>
+            </div>
         </div>
     </div>
 

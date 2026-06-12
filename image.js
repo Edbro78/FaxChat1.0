@@ -92,6 +92,38 @@ async function smallestBlobForCanvas(canvas) {
         .sort((a, b) => a.size - b.size)[0] || null;
 }
 
+function loadImageFromCanvas(canvas) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Kunne ikke behandle tegningen.'));
+        img.src = canvas.toDataURL('image/png');
+    });
+}
+
+async function processFaxCanvas(canvas) {
+    const img = await loadImageFromCanvas(canvas);
+
+    let best = null;
+
+    for (let width = FAX_IMAGE_MAX_WIDTH; width >= FAX_IMAGE_MIN_WIDTH; width -= 100) {
+        const dithered = renderDitheredCanvas(img, width);
+        const blob = await smallestBlobForCanvas(dithered);
+        if (!blob) continue;
+
+        best = blob;
+        if (blob.size <= FAX_IMAGE_MAX_BYTES) {
+            return blob;
+        }
+    }
+
+    if (!best) {
+        throw new Error('Kunne ikke behandle tegningen. Prøv igjen.');
+    }
+
+    return best;
+}
+
 async function processFaxImage(file) {
     const img = await loadImageFromFile(file);
 

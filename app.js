@@ -52,6 +52,8 @@ async function handleLoginSubmit(event) {
             throw new Error('Innlogging OK, men profil finnes ikke. Kjør schema.sql i Supabase SQL Editor (nederst er engangs-fix).');
         }
         initAudio();
+        resumeAudioSync();
+        unlockHtmlAudio();
         await unlockFaxAudio();
         await initFaxApp();
         showApp();
@@ -324,6 +326,7 @@ const FAX_WAV = {
 const faxBufferCache = new Map();
 let faxBuffersPreloadPromise = null;
 let faxSoundCleanup = [];
+let htmlAudioUnlocked = false;
 
 function initAudio() {
     if (!audioCtx) {
@@ -331,7 +334,24 @@ function initAudio() {
     }
 }
 
-const FAX_SOUND_CACHE_VERSION = '3';
+/** Må kalles synkront i klikk/tast-handlers — desktop blokkerer lyd etter await. */
+function resumeAudioSync() {
+    initAudio();
+    if (!audioCtx) return;
+    if (audioCtx.state !== 'running') {
+        void audioCtx.resume();
+    }
+    try {
+        const buffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioCtx.destination);
+        source.start(0);
+        source.stop(0);
+    } catch { /* ignore */ }
+}
+
+const FAX_SOUND_CACHE_VERSION = '4';
 
 function faxSoundUrl(fileName) {
     const url = new URL(`lyder/${encodeURIComponent(fileName)}`, document.baseURI);
@@ -435,40 +455,103 @@ function startFaxWavPlayback(buffer, { managed = true } = {}) {
     return source;
 }
 
-/** Identisk avspilling for alle fax-lyder: resume kontekst, last buffer, spill. */
-async function playFaxSound(fileName, { managed = true } = {}) {
+function preloadFaxHtmlAudio() {
+    Object.values(FAX_WAV).forEach((fileName) => {
+        const warm = new Audio();
+        warm.preload = 'auto';
+        warm.src = faxSoundUrl(fileName);
+        warm.load();
+    });
+}
+
+function unlockHtmlAudio() {
+    if (htmlAudioUnlocked) return;
+    const audio = new Audio(faxSoundUrl(FAX_WAV.print));
+    audio.volume = 0.001;
+    audio.play().then(() => {
+        audio.pause();
+        audio.currentTime = 0;
+        htmlAudioUnlocked = true;
+    }).catch(() => {});
+}
+
+function createFaxHtmlAudio(fileName, { managed = true } = {}) {
+    resumeAudioSync();
+    unlockHtmlAudio();
+    if (managed) clearFaxSoundCleanup();
+
+    const audio = new Audio(faxSoundUrl(fileName));
+    audio.volume = 1;
+    if (managed) {
+        faxSoundCleanup.push(() => {
+            audio.pause();
+            audio.currentTime = 0;
+        });
+    }
+    return audio;
+}
+
+function playFaxHtmlAudio(fileName, options = {}) {
+    const audio = createFaxHtmlAudio(fileName, options);
+    void audio.play().catch((err) => {
+        console.warn('HTML5 faxlyd feilet:', fileName, err);
+    });
+    return audio;
+}
+
+/** Spill fax-lyd synkront i klikk-handler (før await) — viktig for Edge/desktop. */
+function playFaxSoundSync(fileName, options = {}) {
+    return playFaxHtmlAudio(fileName, options);
+}
+
+async function playFaxWebAudio(fileName, { managed = true } = {}) {
     await unlockFaxAudio();
     if (!audioCtx) return null;
-
     if (audioCtx.state === 'suspended') {
         try { await audioCtx.resume(); } catch { /* ignore */ }
     }
-
     let buffer;
     try {
         buffer = await ensureFaxBuffer(fileName);
     } catch (err) {
-        console.warn('Kunne ikke spille faxlyd:', fileName, err);
+        console.warn('Web Audio faxlyd feilet:', fileName, err);
         return null;
     }
-
     try {
         return startFaxWavPlayback(buffer, { managed });
     } catch (err) {
-        console.warn('Avspilling feilet:', fileName, err);
+        console.warn('Web Audio avspilling feilet:', fileName, err);
         return null;
+    }
+}
+
+/** Fax-WAV: HTML5 Audio først (desktop/Edge), Web Audio som fallback (mobil). */
+async function playFaxSound(fileName, { managed = true } = {}) {
+    const audio = createFaxHtmlAudio(fileName, { managed });
+    try {
+        await audio.play();
+        return audio;
+    } catch {
+        return playFaxWebAudio(fileName, { managed });
     }
 }
 
 function installFaxAudioUnlock() {
-    const unlock = () => { void unlockFaxAudio(); };
-    document.addEventListener('pointerdown', unlock, { once: true, capture: true });
-    document.addEventListener('keydown', unlock, { once: true, capture: true });
+    const unlock = () => {
+        resumeAudioSync();
+        unlockHtmlAudio();
+        preloadFaxHtmlAudio();
+        void preloadFaxBuffers();
+    };
+    ['pointerdown', 'keydown', 'click', 'touchstart'].forEach((evt) => {
+        document.addEventListener(evt, unlock, { capture: true });
+    });
+    preloadFaxHtmlAudio();
+    void preloadFaxBuffers();
 }
 
 function playRetroSound(type, f1 = null, f2 = null) {
-    initAudio();
-    void unlockFaxAudio();
+    resumeAudioSync();
     if (!audioCtx) return;
 
     const now = audioCtx.currentTime;
@@ -675,6 +758,7 @@ const MESSAGE_MAX_LENGTH = 50;
 const FAX_SEND_PAUSE_MS = 2600;
 const FAX_SEND_FEED_MS = 5400;
 const PAPER_JAM_INTERVAL = 10;
+const TONER_EMPTY_INTERVAL = 15;
 let isFaxMachineBusy = false;
 
 /** Klassisk 8-sekunders faxlyd: handshake + modem + mekanisk surr */
@@ -948,7 +1032,7 @@ function buildFaxCoverHtml(fax, paperRemaining = null) {
     `;
 }
 
-async function runFaxReceiveAnimation(fax) {
+async function runFaxReceiveAnimation(fax, { simulatePaperJam = false } = {}) {
     if (paperCapacity <= 0) {
         const refilled = await promptRefillPaper();
         if (!refilled) return false;
@@ -961,9 +1045,11 @@ async function runFaxReceiveAnimation(fax) {
 
     const senderProfile = directoryProfiles.find((p) => p.id === fax.sender_user_id);
     const senderName = senderProfile?.name || 'UKJENT';
+    const statusEl = document.getElementById('faxMachineStatus');
+    const hintEl = document.getElementById('faxMachineHint');
 
     showFaxMachineOverlay('receive', 'MOTTAR...', `INNKOMMENDE FRA ${senderName.toUpperCase()} — SKRIVER UT ARK...`);
-    await playFaxSound(FAX_WAV.print);
+    playFaxSoundSync(FAX_WAV.print);
 
     const paper = document.getElementById('faxEmergingPaper');
     const cover = document.getElementById('faxEmergingCover');
@@ -971,6 +1057,28 @@ async function runFaxReceiveAnimation(fax) {
     const scanLine = document.getElementById('faxScanLine');
     if (cover) cover.innerHTML = buildFaxCoverHtml(fax, remaining);
     setFaxBodyElement(body, fax);
+
+    await delay(FAX_SEND_PAUSE_MS);
+
+    if (simulatePaperJam) {
+        clearFaxSoundCleanup();
+        if (statusEl) statusEl.innerText = 'FEIL';
+        if (hintEl) hintEl.innerText = 'PAPIR HAR SATT SEG FAST — STOPPET';
+
+        const recovered = await promptPaperJamRecovery({ mode: 'print' });
+        if (!recovered) {
+            hideFaxMachineOverlay();
+            clearFaxSoundCleanup();
+            paperCapacity++;
+            updatePaperGauge();
+            updateSendButtonState();
+            return false;
+        }
+
+        playFaxSoundSync(FAX_WAV.print);
+        if (statusEl) statusEl.innerText = 'MOTTAR...';
+        if (hintEl) hintEl.innerText = 'SKRIVER UT PÅ NYTT ETTER PAPIRFJERNING...';
+    }
 
     const animMs = `${FAX_RECEIVE_MS}ms`;
     paper.style.animationDuration = animMs;
@@ -1011,27 +1119,65 @@ async function runFaxReceiveAnimation(fax) {
     return true;
 }
 
-function faxSendCountStorageKey() {
-    return `faxchat_send_count_${currentProfile?.station_id || 'unknown'}`;
+function faxOperationCountStorageKey() {
+    return `faxchat_operation_count_${currentProfile?.station_id || 'unknown'}`;
 }
 
-function getFaxSendCount() {
+function getFaxOperationCount() {
+    const key = faxOperationCountStorageKey();
+    const legacyKey = `faxchat_send_count_${currentProfile?.station_id || 'unknown'}`;
     try {
-        const n = parseInt(localStorage.getItem(faxSendCountStorageKey()), 10);
-        return Number.isFinite(n) && n >= 0 ? n : 0;
+        let n = parseInt(localStorage.getItem(key), 10);
+        if (!Number.isFinite(n) || n < 0) {
+            const legacy = parseInt(localStorage.getItem(legacyKey), 10);
+            n = Number.isFinite(legacy) && legacy >= 0 ? legacy : 0;
+        }
+        return n;
     } catch {
         return 0;
     }
 }
 
-function incrementFaxSendCount() {
+function incrementFaxOperationCount() {
     try {
-        localStorage.setItem(faxSendCountStorageKey(), String(getFaxSendCount() + 1));
+        localStorage.setItem(faxOperationCountStorageKey(), String(getFaxOperationCount() + 1));
     } catch { /* ignore */ }
 }
 
 function willTriggerPaperJam() {
-    return (getFaxSendCount() + 1) % PAPER_JAM_INTERVAL === 0;
+    return (getFaxOperationCount() + 1) % PAPER_JAM_INTERVAL === 0;
+}
+
+function willTriggerTonerEmpty() {
+    return (getFaxOperationCount() + 1) % TONER_EMPTY_INTERVAL === 0;
+}
+
+let tonerRefillResolve = null;
+
+async function ensureTonerRefillOnStart() {
+    if (!willTriggerTonerEmpty()) return;
+
+    setAppScreen('start', { skipFaxRefresh: true });
+
+    const lcd = document.getElementById('startJitflLcdText');
+    if (lcd) lcd.textContent = 'TOMT FOR TONER/BLEKK';
+
+    document.getElementById('startTonerBanner')?.classList.remove('hidden');
+    playFaxSoundSync(FAX_WAV.outOfPaper);
+
+    await new Promise((resolve) => {
+        tonerRefillResolve = resolve;
+    });
+}
+
+function confirmTonerRefill() {
+    document.getElementById('startTonerBanner')?.classList.add('hidden');
+    playRetroSound('key');
+    updateStartScreenAlert();
+    if (tonerRefillResolve) {
+        tonerRefillResolve();
+        tonerRefillResolve = null;
+    }
 }
 
 async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simulatePaperJam = false } = {}) {
@@ -1055,7 +1201,7 @@ async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simula
         'KLAR',
         `SJEKK ARKET — ${destSummary}`
     );
-    await playFaxSound(FAX_WAV.sending);
+    playFaxSoundSync(FAX_WAV.sending);
 
     if (destLabel) {
         destLabel.textContent = isMulti
@@ -1075,14 +1221,14 @@ async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simula
         hintEl.innerText = 'PAPIR HAR SATT SEG FAST — STOPPET';
         if (lcd) lcd.textContent = 'PAPER JAM';
 
-        const recovered = await promptPaperJamRecovery();
+        const recovered = await promptPaperJamRecovery({ mode: 'send' });
         if (!recovered) {
             hideFaxMachineOverlay();
             clearFaxSoundCleanup();
             return false;
         }
 
-        await playFaxSound(FAX_WAV.sending);
+        playFaxSoundSync(FAX_WAV.sending);
     }
 
     statusEl.innerText = 'SENDER...';
@@ -1122,6 +1268,8 @@ function syncIncomingFromFetched(fetchedList) {
 }
 
 async function printPendingIncomingFaxes() {
+    resumeAudioSync();
+    unlockHtmlAudio();
     if (isFaxMachineBusy) return;
 
     const printed = loadPrintedFaxIds();
@@ -1134,8 +1282,11 @@ async function printPendingIncomingFaxes() {
     isFaxMachineBusy = true;
     try {
         for (const fax of toPrint) {
-            const ok = await runFaxReceiveAnimation(fax);
+            await ensureTonerRefillOnStart();
+            const simulatePaperJam = willTriggerPaperJam();
+            const ok = await runFaxReceiveAnimation(fax, { simulatePaperJam });
             if (!ok) break;
+            incrementFaxOperationCount();
             incomingFaxes = [fax, ...incomingFaxes];
             stackViewIndex = 0;
             renderFaxes();
@@ -1157,7 +1308,12 @@ let directoryProfiles = [];
 let incomingFaxes = [];
 let pendingPrintQueue = [];
 let pendingFaxImageUrl = null;
+let pendingFaxImageSource = null;
 let isUploadingFaxImage = false;
+let penDrawInitialized = false;
+let penIsDrawing = false;
+let penLastX = 0;
+let penLastY = 0;
 let dialedBuffer = "";
 let activeRecipientStation = null;
 let selectedRecipients = [];
@@ -1258,13 +1414,15 @@ function updateSendButtonState() {
         : `${recipients.length} MOTTAKERE (${recipients.map((p) => 'NR ' + p.station_id).join(', ')})`;
 
     if (!text && !pendingFaxImageUrl) {
-        setSendHints(`Koblet til ${recipientText} — skriv melding eller legg ved bilde under SKRIV.`);
+        setSendHints(`Koblet til ${recipientText} — skriv melding, legg ved bilde, eller tegn med penn.`);
         btn.disabled = true;
         btn.classList.add('opacity-40');
         return;
     }
 
-    const attachNote = pendingFaxImageUrl ? ' + BILDE' : '';
+    const attachNote = pendingFaxImageUrl
+        ? (pendingFaxImageSource === 'pen' ? ' + TEGNING' : ' + BILDE')
+        : '';
     setSendHints(`Klar: SEND FAX til ${recipientText}${attachNote}.`);
     btn.disabled = false;
     btn.classList.remove('opacity-40');
@@ -1594,7 +1752,7 @@ function showConfirmBox(title, text, onYes, onNo) {
 }
 
 async function promptRefillPaper() {
-    await playFaxSound(FAX_WAV.outOfPaper, { managed: false });
+    playFaxSoundSync(FAX_WAV.outOfPaper, { managed: false });
     return new Promise((resolve) => {
         showConfirmBox(
             'TOMT FOR PAPIR',
@@ -1608,12 +1766,15 @@ async function promptRefillPaper() {
     });
 }
 
-async function promptPaperJamRecovery() {
-    await playFaxSound(FAX_WAV.paperJam, { managed: false });
+async function promptPaperJamRecovery({ mode = 'send' } = {}) {
+    playFaxSoundSync(FAX_WAV.paperJam, { managed: false });
+    const resumeText = mode === 'print'
+        ? 'utskriften fortsetter automatisk'
+        : 'faxen sendes automatisk på nytt';
     return new Promise((resolve) => {
         showConfirmBox(
             'PAPIR HAR SATT SEG FAST',
-            'Ta ut det fastkjørte arket fra faxmaskinen. Bekreft når papiret er fjernet — faxen sendes automatisk på nytt.',
+            `Ta ut det fastkjørte arket fra faxmaskinen. Bekreft når papiret er fjernet — ${resumeText}.`,
             () => resolve(true),
             () => resolve(false)
         );
@@ -1645,6 +1806,13 @@ function updatePaperGauge() {
     }
 }
 
+window.resumeAudioSync = resumeAudioSync;
+window.startTransmissionFromClick = startTransmissionFromClick;
+window.confirmTonerRefill = confirmTonerRefill;
+window.openPenDrawModal = openPenDrawModal;
+window.closePenDrawModal = closePenDrawModal;
+window.clearPenDrawCanvas = clearPenDrawCanvas;
+window.confirmPenDrawing = confirmPenDrawing;
 window.setAppScreen = setAppScreen;
 window.refreshIncomingFaxes = refreshIncomingFaxes;
 window.confirmAlertYes = confirmAlertYes;
@@ -1774,24 +1942,172 @@ function setFaxImageStatus(text) {
 function updateFaxImagePreview(url) {
     const preview = document.getElementById('faxImagePreview');
     const img = document.getElementById('faxImagePreviewImg');
-    if (!preview || !img) return;
+    if (preview && img) {
+        if (url) {
+            img.src = url;
+            preview.classList.remove('hidden');
+        } else {
+            img.removeAttribute('src');
+            preview.classList.add('hidden');
+        }
+    }
 
-    if (url) {
-        img.src = url;
-        preview.classList.remove('hidden');
-    } else {
-        img.removeAttribute('src');
-        preview.classList.add('hidden');
+    const sendWrap = document.getElementById('sendPenPreview');
+    const sendImg = document.getElementById('sendPenPreviewImg');
+    if (sendWrap && sendImg) {
+        if (url && pendingFaxImageSource === 'pen') {
+            sendImg.src = url;
+            sendWrap.classList.remove('hidden');
+        } else {
+            sendImg.removeAttribute('src');
+            sendWrap.classList.add('hidden');
+        }
     }
 }
 
 function clearFaxImage() {
     pendingFaxImageUrl = null;
+    pendingFaxImageSource = null;
     const input = document.getElementById('faxImageInput');
     if (input) input.value = '';
     updateFaxImagePreview(null);
     setFaxImageStatus('');
     updateSendButtonState();
+}
+
+function getPenDrawCanvas() {
+    return document.getElementById('penDrawCanvas');
+}
+
+function initPenDrawCanvas() {
+    const canvas = getPenDrawCanvas();
+    if (!canvas || penDrawInitialized) return;
+
+    const ctx = canvas.getContext('2d');
+
+    const startStroke = (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        penIsDrawing = true;
+        canvas.setPointerCapture(e.pointerId);
+        const pos = getPenDrawPos(e, canvas);
+        penLastX = pos.x;
+        penLastY = pos.y;
+    };
+
+    const drawStroke = (e) => {
+        if (!penIsDrawing) return;
+        e.preventDefault();
+        const pos = getPenDrawPos(e, canvas);
+        ctx.beginPath();
+        ctx.moveTo(penLastX, penLastY);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        penLastX = pos.x;
+        penLastY = pos.y;
+    };
+
+    const endStroke = (e) => {
+        if (!penIsDrawing) return;
+        penIsDrawing = false;
+        try { canvas.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    };
+
+    canvas.addEventListener('pointerdown', startStroke);
+    canvas.addEventListener('pointermove', drawStroke);
+    canvas.addEventListener('pointerup', endStroke);
+    canvas.addEventListener('pointercancel', endStroke);
+    canvas.addEventListener('pointerleave', endStroke);
+
+    penDrawInitialized = true;
+}
+
+function getPenDrawPos(e, canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+    };
+}
+
+function resetPenDrawCanvas() {
+    const canvas = getPenDrawCanvas();
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    penIsDrawing = false;
+}
+
+function isPenDrawCanvasBlank(canvas) {
+    const ctx = canvas.getContext('2d');
+    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < data.length; i += 4) {
+        if (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function openPenDrawModal() {
+    resumeAudioSync();
+    initPenDrawCanvas();
+    resetPenDrawCanvas();
+    document.getElementById('penDrawOverlay')?.classList.remove('hidden');
+    playRetroSound('key');
+}
+
+function closePenDrawModal() {
+    document.getElementById('penDrawOverlay')?.classList.add('hidden');
+    penIsDrawing = false;
+    playRetroSound('key');
+}
+
+function clearPenDrawCanvas() {
+    resetPenDrawCanvas();
+    playRetroSound('key');
+}
+
+async function confirmPenDrawing() {
+    const canvas = getPenDrawCanvas();
+    if (!canvas) return;
+
+    if (isPenDrawCanvasBlank(canvas)) {
+        showMsgBox('TOMT ARK', 'Tegn en signatur eller skisse før du bruker tegningen.');
+        return;
+    }
+
+    closePenDrawModal();
+    isUploadingFaxImage = true;
+    setFaxImageStatus('BEHANDLER TEGNING...');
+    updateSendButtonState();
+
+    try {
+        const blob = await processFaxCanvas(canvas);
+        setFaxImageStatus('LASTER OPP TEGNING...');
+        const publicUrl = await uploadFaxImage(blob);
+        pendingFaxImageUrl = publicUrl;
+        pendingFaxImageSource = 'pen';
+        updateFaxImagePreview(publicUrl);
+        const kb = Math.max(1, Math.round(blob.size / 1024));
+        setFaxImageStatus(`TEGNING KLAR (${kb} KB)`);
+        playRetroSound('key');
+    } catch (err) {
+        pendingFaxImageUrl = null;
+        pendingFaxImageSource = null;
+        updateFaxImagePreview(null);
+        setFaxImageStatus('');
+        showMsgBox('TEGNING FEIL', err.message || 'Kunne ikke behandle tegningen.');
+    } finally {
+        isUploadingFaxImage = false;
+        updateSendButtonState();
+    }
 }
 
 async function uploadFaxImage(blob) {
@@ -1830,12 +2146,14 @@ async function handleFaxImageSelected(event) {
         setFaxImageStatus('LASTER OPP...');
         const publicUrl = await uploadFaxImage(blob);
         pendingFaxImageUrl = publicUrl;
+        pendingFaxImageSource = 'file';
         updateFaxImagePreview(publicUrl);
         const kb = Math.max(1, Math.round(blob.size / 1024));
         setFaxImageStatus(`VEDLEGG KLAR (${kb} KB)`);
         playRetroSound('key');
     } catch (err) {
         pendingFaxImageUrl = null;
+        pendingFaxImageSource = null;
         updateFaxImagePreview(null);
         setFaxImageStatus('');
         showMsgBox('BILDE FEIL', err.message || 'Kunne ikke behandle bildet.');
@@ -1995,7 +2313,7 @@ async function runShredAnimation(fax) {
     document.getElementById('shredderStatus').innerText = 'AKTIV';
     document.getElementById('shredderHint').innerText = 'MAKULERER KONFIDENSIELT ARK — 6 SEK';
 
-    await playFaxSound(FAX_WAV.shredder);
+    playFaxSoundSync(FAX_WAV.shredder);
 
     await delay(350);
     paper?.classList.add('phase-feed');
@@ -2037,6 +2355,12 @@ async function sendTopToBack() {
     }, 400);
 }
 
+function startTransmissionFromClick() {
+    resumeAudioSync();
+    unlockHtmlAudio();
+    void startTransmission();
+}
+
 async function startTransmission() {
     if (isFaxMachineBusy) return;
 
@@ -2069,16 +2393,14 @@ async function startTransmission() {
     }
 
     setAppScreen('send', { skipFaxRefresh: true });
-
-    initAudio();
-    if (audioCtx?.state === 'suspended') {
-        try { await audioCtx.resume(); } catch { /* ignore */ }
-    }
-    await unlockFaxAudio();
+    resumeAudioSync();
+    void preloadFaxBuffers();
 
     const sendBtn = document.getElementById('startTransmissionBtn');
     isFaxMachineBusy = true;
     if (sendBtn) sendBtn.disabled = true;
+
+    await ensureTonerRefillOnStart();
 
     const simulatePaperJam = willTriggerPaperJam();
 
@@ -2109,7 +2431,7 @@ async function startTransmission() {
             return;
         }
 
-        incrementFaxSendCount();
+        incrementFaxOperationCount();
 
         inputEl.value = "";
         clearFaxImage();
