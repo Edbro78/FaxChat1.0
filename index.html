@@ -258,10 +258,6 @@
                                 <span class="compose-attach-label">Fotografi</span>
                                 <input type="file" id="faxImageInput" accept="image/*" class="sr-only" onchange="handleFaxImageSelected(event)">
                             </label>
-                            <button type="button" onclick="openPenDrawModal()" class="compose-attach-btn" title="Signer">
-                                <i class="fa-solid fa-pen-nib"></i>
-                                <span class="compose-attach-label">Signer</span>
-                            </button>
                             <div id="faxImagePreview" class="compose-image-preview hidden">
                                 <img id="faxImagePreviewImg" alt="Vedlegg forhåndsvisning" class="compose-image-preview-img">
                                 <button type="button" onclick="clearFaxImage()" class="compose-image-remove" title="Fjern bilde" aria-label="Fjern bilde">
@@ -469,21 +465,6 @@
                 </div>
             </div>
             <p id="shredderHint" class="text-[10px] font-mono text-amber-500/90 mt-1 mb-1 text-center shrink-0 px-3 pb-safe">MATER ARK INN I MAKULERER...</p>
-        </div>
-    </div>
-
-    <div id="penDrawOverlay" class="pen-draw-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="penDrawTitle">
-        <div class="pen-draw-panel lcd-display scanlines">
-            <h2 id="penDrawTitle" class="pen-draw-title font-bold font-mono tracking-wider">SKRIV MED PENN</h2>
-            <p class="pen-draw-desc font-mono text-[11px] opacity-90">Signer eller tegn en skisse — sendes som dithered fax-vedlegg til mottaker.</p>
-            <div class="pen-draw-canvas-wrap bevel-in">
-                <canvas id="penDrawCanvas" class="pen-draw-canvas" width="560" height="200" aria-label="Tegnefelt"></canvas>
-            </div>
-            <div class="pen-draw-actions">
-                <button type="button" onclick="clearPenDrawCanvas()" class="btn-retro pen-draw-btn font-bold font-mono">TØM</button>
-                <button type="button" onclick="closePenDrawModal()" class="btn-retro pen-draw-btn font-bold font-mono">AVBRYT</button>
-                <button type="button" onclick="confirmPenDrawing()" class="btn-hardware-red pen-draw-btn font-bold font-mono">BRUK TEGNING</button>
-            </div>
         </div>
     </div>
 

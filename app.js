@@ -1147,12 +1147,7 @@ let directoryProfiles = [];
 let incomingFaxes = [];
 let pendingPrintQueue = [];
 let pendingFaxImageUrl = null;
-let pendingFaxImageSource = null;
 let isUploadingFaxImage = false;
-let penDrawInitialized = false;
-let penIsDrawing = false;
-let penLastX = 0;
-let penLastY = 0;
 let dialedBuffer = "";
 let activeRecipientStation = null;
 let selectedRecipients = [];
@@ -1258,9 +1253,7 @@ function updateSendButtonState() {
         return;
     }
 
-    const attachNote = pendingFaxImageUrl
-        ? (pendingFaxImageSource === 'pen' ? ' + TEGNING' : ' + BILDE')
-        : '';
+    const attachNote = pendingFaxImageUrl ? ' + BILDE' : '';
     setSendHints(`Klar: SEND FAX til ${recipientText}${attachNote}.`);
     btn.disabled = false;
     btn.classList.remove('opacity-40');
@@ -1645,10 +1638,6 @@ function updatePaperGauge() {
 
 window.startTransmissionFromClick = startTransmissionFromClick;
 window.confirmTonerRefill = confirmTonerRefill;
-window.openPenDrawModal = openPenDrawModal;
-window.closePenDrawModal = closePenDrawModal;
-window.clearPenDrawCanvas = clearPenDrawCanvas;
-window.confirmPenDrawing = confirmPenDrawing;
 window.setAppScreen = setAppScreen;
 window.refreshIncomingFaxes = refreshIncomingFaxes;
 window.confirmAlertYes = confirmAlertYes;
@@ -1791,146 +1780,11 @@ function updateFaxImagePreview(url) {
 
 function clearFaxImage() {
     pendingFaxImageUrl = null;
-    pendingFaxImageSource = null;
     const input = document.getElementById('faxImageInput');
     if (input) input.value = '';
     updateFaxImagePreview(null);
     setFaxImageStatus('');
     updateSendButtonState();
-}
-
-function getPenDrawCanvas() {
-    return document.getElementById('penDrawCanvas');
-}
-
-function initPenDrawCanvas() {
-    const canvas = getPenDrawCanvas();
-    if (!canvas || penDrawInitialized) return;
-
-    const ctx = canvas.getContext('2d');
-
-    const startStroke = (e) => {
-        if (e.pointerType === 'mouse' && e.button !== 0) return;
-        penIsDrawing = true;
-        canvas.setPointerCapture(e.pointerId);
-        const pos = getPenDrawPos(e, canvas);
-        penLastX = pos.x;
-        penLastY = pos.y;
-    };
-
-    const drawStroke = (e) => {
-        if (!penIsDrawing) return;
-        e.preventDefault();
-        const pos = getPenDrawPos(e, canvas);
-        ctx.beginPath();
-        ctx.moveTo(penLastX, penLastY);
-        ctx.lineTo(pos.x, pos.y);
-        ctx.stroke();
-        penLastX = pos.x;
-        penLastY = pos.y;
-    };
-
-    const endStroke = (e) => {
-        if (!penIsDrawing) return;
-        penIsDrawing = false;
-        try { canvas.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-    };
-
-    canvas.addEventListener('pointerdown', startStroke);
-    canvas.addEventListener('pointermove', drawStroke);
-    canvas.addEventListener('pointerup', endStroke);
-    canvas.addEventListener('pointercancel', endStroke);
-    canvas.addEventListener('pointerleave', endStroke);
-
-    penDrawInitialized = true;
-}
-
-function getPenDrawPos(e, canvas) {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY
-    };
-}
-
-function resetPenDrawCanvas() {
-    const canvas = getPenDrawCanvas();
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    penIsDrawing = false;
-}
-
-function isPenDrawCanvasBlank(canvas) {
-    const ctx = canvas.getContext('2d');
-    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < data.length; i += 4) {
-        if (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255) {
-            return false;
-        }
-    }
-    return true;
-}
-
-function openPenDrawModal() {
-    initPenDrawCanvas();
-    resetPenDrawCanvas();
-    document.getElementById('penDrawOverlay')?.classList.remove('hidden');
-    playRetroSound('key');
-}
-
-function closePenDrawModal() {
-    document.getElementById('penDrawOverlay')?.classList.add('hidden');
-    penIsDrawing = false;
-    playRetroSound('key');
-}
-
-function clearPenDrawCanvas() {
-    resetPenDrawCanvas();
-    playRetroSound('key');
-}
-
-async function confirmPenDrawing() {
-    const canvas = getPenDrawCanvas();
-    if (!canvas) return;
-
-    if (isPenDrawCanvasBlank(canvas)) {
-        showMsgBox('TOMT ARK', 'Tegn en signatur eller skisse før du bruker tegningen.');
-        return;
-    }
-
-    closePenDrawModal();
-    isUploadingFaxImage = true;
-    setFaxImageStatus('BEHANDLER TEGNING...');
-    updateSendButtonState();
-
-    try {
-        const blob = await processFaxCanvas(canvas);
-        setFaxImageStatus('LASTER OPP TEGNING...');
-        const publicUrl = await uploadFaxImage(blob);
-        pendingFaxImageUrl = publicUrl;
-        pendingFaxImageSource = 'pen';
-        updateFaxImagePreview(publicUrl);
-        const kb = Math.max(1, Math.round(blob.size / 1024));
-        setFaxImageStatus(`TEGNING KLAR (${kb} KB)`);
-        playRetroSound('key');
-    } catch (err) {
-        pendingFaxImageUrl = null;
-        pendingFaxImageSource = null;
-        updateFaxImagePreview(null);
-        setFaxImageStatus('');
-        showMsgBox('TEGNING FEIL', err.message || 'Kunne ikke behandle tegningen.');
-    } finally {
-        isUploadingFaxImage = false;
-        updateSendButtonState();
-    }
 }
 
 async function uploadFaxImage(blob) {
@@ -1969,14 +1823,12 @@ async function handleFaxImageSelected(event) {
         setFaxImageStatus('LASTER OPP...');
         const publicUrl = await uploadFaxImage(blob);
         pendingFaxImageUrl = publicUrl;
-        pendingFaxImageSource = 'file';
         updateFaxImagePreview(publicUrl);
         const kb = Math.max(1, Math.round(blob.size / 1024));
         setFaxImageStatus(`VEDLEGG KLAR (${kb} KB)`);
         playRetroSound('key');
     } catch (err) {
         pendingFaxImageUrl = null;
-        pendingFaxImageSource = null;
         updateFaxImagePreview(null);
         setFaxImageStatus('');
         showMsgBox('BILDE FEIL', err.message || 'Kunne ikke behandle bildet.');
