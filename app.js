@@ -34,6 +34,22 @@ async function loadProfile() {
     return ensured;
 }
 
+function normalizeLoginEmail(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function normalizeLoginPassword(value) {
+    return String(value || '').trim();
+}
+
+function mapLoginError(error) {
+    const message = (error?.message || '').toLowerCase();
+    if (message.includes('invalid login credentials')) {
+        return 'Feil e-post eller passord. På mobil: skriv passordet manuelt og sjekk at det ikke er mellomrom foran eller bak.';
+    }
+    return error?.message || 'Innlogging feilet.';
+}
+
 async function handleLoginSubmit(event) {
     event.preventDefault();
     const errEl = document.getElementById('loginError');
@@ -42,8 +58,12 @@ async function handleLoginSubmit(event) {
     btn.disabled = true;
     btn.innerText = 'KOBLER TIL...';
     try {
-        const email = document.getElementById('loginEmail').value.trim();
-        const password = document.getElementById('loginPassword').value;
+        const email = normalizeLoginEmail(document.getElementById('loginEmail').value);
+        const password = normalizeLoginPassword(document.getElementById('loginPassword').value);
+        if (!email || !password) {
+            throw new Error('Fyll inn både e-post og passord.');
+        }
+        document.getElementById('loginEmail').value = email;
         const { error } = await getSupabase().auth.signInWithPassword({ email, password });
         if (error) throw error;
         currentProfile = await loadProfile();
@@ -55,7 +75,7 @@ async function handleLoginSubmit(event) {
         await initFaxApp();
         showApp();
     } catch (e) {
-        errEl.innerText = e.message || 'Innlogging feilet.';
+        errEl.innerText = mapLoginError(e);
         errEl.classList.remove('hidden');
     } finally {
         btn.disabled = false;

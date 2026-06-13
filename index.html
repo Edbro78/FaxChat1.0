@@ -43,12 +43,12 @@
                 <p class="text-[10px] font-mono opacity-90">Logg inn med <strong>e-post + passord</strong> du får fra administrator.</p>
                 <div>
                     <label for="loginEmail" class="text-[10px] font-bold font-mono uppercase block mb-1">E-post</label>
-                    <input id="loginEmail" type="email" required autocomplete="email" placeholder="din@epost.no"
+                    <input id="loginEmail" name="username" type="email" required autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="din@epost.no"
                            class="w-full bg-[#1a1510] border-2 border-[#5a5142] text-amber-400 font-mono px-3 py-2 text-sm focus:outline-none focus:border-amber-600" />
                 </div>
                 <div>
                     <label for="loginPassword" class="text-[10px] font-bold font-mono uppercase block mb-1">Passord</label>
-                    <input id="loginPassword" type="password" required autocomplete="current-password"
+                    <input id="loginPassword" name="password" type="password" required autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false"
                            class="w-full bg-[#1a1510] border-2 border-[#5a5142] text-amber-400 font-mono px-3 py-2 text-sm focus:outline-none focus:border-amber-600" />
                 </div>
                 <p id="loginError" class="hidden text-red-400 text-xs font-mono"></p>
