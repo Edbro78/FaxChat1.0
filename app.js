@@ -6,7 +6,13 @@ let currentProfile = null;
 
 function getSupabase() {
     if (!supabaseClient) {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
+        });
     }
     return supabaseClient;
 }
@@ -21,9 +27,13 @@ function showApp() {
     document.getElementById('appScreen').classList.remove('hidden');
 }
 
-async function loadProfile() {
+async function loadProfile(userHint) {
     const sb = getSupabase();
-    const { data: { user } } = await sb.auth.getUser();
+    let user = userHint || null;
+    if (!user) {
+        const { data: { user: fetched } } = await sb.auth.getUser();
+        user = fetched;
+    }
     if (!user) return null;
 
     const { data } = await sb.from('profiles').select('id, name, station_id, fax_label, description').eq('id', user.id).maybeSingle();
@@ -34,12 +44,18 @@ async function loadProfile() {
     return ensured;
 }
 
+function stripInvisibleChars(value) {
+    return String(value || '')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/\u00A0/g, ' ');
+}
+
 function normalizeLoginEmail(value) {
-    return String(value || '').trim().toLowerCase();
+    return stripInvisibleChars(value).trim().toLowerCase();
 }
 
 function normalizeLoginPassword(value) {
-    return String(value || '').trim();
+    return stripInvisibleChars(value).trim();
 }
 
 function mapLoginError(error) {
@@ -64,15 +80,20 @@ async function handleLoginSubmit(event) {
             throw new Error('Fyll inn både e-post og passord.');
         }
         document.getElementById('loginEmail').value = email;
-        const { error } = await getSupabase().auth.signInWithPassword({ email, password });
+        const { data, error } = await getSupabase().auth.signInWithPassword({ email, password });
         if (error) throw error;
-        currentProfile = await loadProfile();
+        currentProfile = await loadProfile(data?.user);
         if (!currentProfile) {
             await getSupabase().auth.signOut();
             throw new Error('Innlogging OK, men profil finnes ikke. Kjør schema.sql i Supabase SQL Editor (nederst er engangs-fix).');
         }
         initAudio();
-        await initFaxApp();
+        try {
+            await initFaxApp();
+        } catch (initErr) {
+            console.error('initFaxApp failed after login', initErr);
+            showMsgBox('STARTVARSEL', initErr?.message || 'Noe feilet ved oppstart, men du er innlogget.');
+        }
         showApp();
     } catch (e) {
         errEl.innerText = mapLoginError(e);
@@ -305,55 +326,59 @@ async function registerServiceWorker() {
 }
 
 async function setupPushNotifications(options = {}) {
-    if (!canUsePush()) {
-        updatePwaBanners();
-        return;
-    }
-
-    const vapidPublic = window.FAXCHAT_PUSH?.vapidPublicKey;
-    if (!vapidPublic) return;
-
-    let permission = getNotificationPermission();
-    if (permission === 'default') {
-        if (!options.requestNow) {
+    try {
+        if (!canUsePush()) {
             updatePwaBanners();
             return;
         }
-        permission = await Notification.requestPermission();
-    }
-    if (permission !== 'granted') {
+
+        const vapidPublic = window.FAXCHAT_PUSH?.vapidPublicKey;
+        if (!vapidPublic) return;
+
+        let permission = getNotificationPermission();
+        if (permission === 'default') {
+            if (!options.requestNow) {
+                updatePwaBanners();
+                return;
+            }
+            permission = await Notification.requestPermission();
+        }
+        if (permission !== 'granted') {
+            updatePwaBanners();
+            return;
+        }
+
+        await registerServiceWorker();
+        const reg = await navigator.serviceWorker.ready;
+
+        const { data: { user } } = await getSupabase().auth.getUser();
+        if (!user) return;
+
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+            sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidPublic)
+            });
+        }
+
+        const { error } = await getSupabase().from('push_subscriptions').upsert(
+            {
+                user_id: user.id,
+                endpoint: sub.endpoint,
+                subscription: sub.toJSON()
+            },
+            { onConflict: 'user_id,endpoint' }
+        );
+
+        if (error) {
+            console.warn('Kunne ikke lagre push-abonnement:', error.message);
+        }
+    } catch (e) {
+        console.warn('Push-oppsett feilet:', e);
+    } finally {
         updatePwaBanners();
-        return;
     }
-
-    await registerServiceWorker();
-    const reg = await navigator.serviceWorker.ready;
-
-    const { data: { user } } = await getSupabase().auth.getUser();
-    if (!user) return;
-
-    let sub = await reg.pushManager.getSubscription();
-    if (!sub) {
-        sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapidPublic)
-        });
-    }
-
-    const { error } = await getSupabase().from('push_subscriptions').upsert(
-        {
-            user_id: user.id,
-            endpoint: sub.endpoint,
-            subscription: sub.toJSON()
-        },
-        { onConflict: 'user_id,endpoint' }
-    );
-
-    if (error) {
-        console.warn('Kunne ikke lagre push-abonnement:', error.message);
-    }
-
-    updatePwaBanners();
 }
 
 // --- SOUND SYNTHESIS ENGINE (Synthesized via Web Audio API) ---
