@@ -81,15 +81,21 @@ function renderDitheredCanvas(img, targetWidth) {
 }
 
 async function smallestBlobForCanvas(canvas) {
-    const candidates = [await canvasToBlob(canvas, 'image/png')];
+    const jpeg = await canvasToBlob(canvas, 'image/jpeg', 0.72);
+    if (jpeg && jpeg.size <= FAX_IMAGE_MAX_BYTES) return jpeg;
 
-    for (let quality = 0.8; quality >= 0.2; quality -= 0.1) {
-        candidates.push(await canvasToBlob(canvas, 'image/jpeg', quality));
+    const jpegSmall = await canvasToBlob(canvas, 'image/jpeg', 0.5);
+    if (jpegSmall) {
+        if (jpegSmall.size <= FAX_IMAGE_MAX_BYTES) return jpegSmall;
+        if (!jpeg || jpegSmall.size < jpeg.size) return jpegSmall;
     }
 
-    return candidates
-        .filter(Boolean)
-        .sort((a, b) => a.size - b.size)[0] || null;
+    const png = await canvasToBlob(canvas, 'image/png');
+    if (png) {
+        if (!jpeg || png.size < jpeg.size) return png;
+    }
+
+    return jpeg || jpegSmall || png || null;
 }
 
 async function processFaxImage(file) {
@@ -97,7 +103,7 @@ async function processFaxImage(file) {
 
     let best = null;
 
-    for (let width = FAX_IMAGE_MAX_WIDTH; width >= FAX_IMAGE_MIN_WIDTH; width -= 100) {
+    for (let width = FAX_IMAGE_MAX_WIDTH; width >= FAX_IMAGE_MIN_WIDTH; width -= 200) {
         const canvas = renderDitheredCanvas(img, width);
         const blob = await smallestBlobForCanvas(canvas);
         if (!blob) continue;

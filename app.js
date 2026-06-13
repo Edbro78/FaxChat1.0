@@ -149,6 +149,17 @@ function isAndroidDevice() {
     return /Android/i.test(navigator.userAgent);
 }
 
+function isMobileDevice() {
+    return isIosDevice() || isAndroidDevice();
+}
+
+function getSendAnimationTiming() {
+    if (isMobileDevice()) {
+        return { pauseMs: 1400, feedMs: 3200, cycleMs: 4500 };
+    }
+    return { pauseMs: FAX_SEND_PAUSE_MS, feedMs: FAX_SEND_FEED_MS, cycleMs: FAX_CYCLE_MS };
+}
+
 function isVivaldiBrowser() {
     return /Vivaldi/i.test(navigator.userAgent);
 }
@@ -396,6 +407,9 @@ function clearFaxSoundCleanup() {
         try { fn(); } catch (_) { /* ignore */ }
     });
     faxSoundCleanup = [];
+    if (audioCtx && audioCtx.state === 'running') {
+        audioCtx.suspend().catch(() => {});
+    }
 }
 
 function playRetroSound(type, f1 = null, f2 = null) {
@@ -609,18 +623,42 @@ const PAPER_JAM_INTERVAL = 10;
 const TONER_EMPTY_INTERVAL = 15;
 let isFaxMachineBusy = false;
 
-/** Klassisk 8-sekunders faxlyd: handshake + modem + mekanisk surr */
+function isFaxMachineUiActive() {
+    const overlay = document.getElementById('faxMachineOverlay');
+    const shred = document.getElementById('shredderOverlay');
+    const alert = document.getElementById('customAlert');
+    return !overlay?.classList.contains('hidden')
+        || !shred?.classList.contains('hidden')
+        || !alert?.classList.contains('hidden');
+}
+
+function releaseStaleFaxMachineLock() {
+    if (!isFaxMachineBusy || isFaxMachineUiActive()) return false;
+    isFaxMachineBusy = false;
+    hideFaxMachineOverlay();
+    hideShredderOverlay();
+    clearFaxSoundCleanup();
+    updateSendButtonState();
+    return true;
+}
+
+/** Klassisk faxlyd: handshake + modem + mekanisk surr (lettere på mobil) */
 function playFaxMachineCycle(durationMs = FAX_CYCLE_MS) {
     initAudio();
     if (!audioCtx) return;
     clearFaxSoundCleanup();
 
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+    }
+
     const now = audioCtx.currentTime;
     const durationSec = durationMs / 1000;
+    const mobile = isMobileDevice();
 
     beep(1100, 0.35, now);
     beep(1100, 0.35, now + 0.55);
-    beep(2100, 0.7, now + 1.15);
+    if (!mobile) beep(2100, 0.7, now + 1.15);
 
     const motorStart = now + 0.15;
     const motorOsc = audioCtx.createOscillator();
@@ -628,15 +666,15 @@ function playFaxMachineCycle(durationMs = FAX_CYCLE_MS) {
     motorOsc.type = 'sawtooth';
     motorOsc.frequency.setValueAtTime(48, motorStart);
     motorOsc.frequency.linearRampToValueAtTime(88, motorStart + 1.0);
-    motorGain.gain.setValueAtTime(0.05, motorStart);
+    motorGain.gain.setValueAtTime(mobile ? 0.035 : 0.05, motorStart);
     motorGain.gain.exponentialRampToValueAtTime(0.006, motorStart + 1.05);
     motorOsc.connect(motorGain);
     motorGain.connect(audioCtx.destination);
     motorOsc.start(motorStart);
     motorOsc.stop(motorStart + 1.1);
 
-    const dataStart = now + 2.0;
-    const dataDuration = Math.max(0.5, durationSec - 2.0);
+    const dataStart = now + (mobile ? 1.2 : 2.0);
+    const dataDuration = Math.max(0.35, Math.min(durationSec - (mobile ? 1.2 : 2.0), mobile ? 2.5 : durationSec));
     const bufferSize = Math.floor(audioCtx.sampleRate * dataDuration);
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const bufData = buffer.getChannelData(0);
@@ -653,52 +691,57 @@ function playFaxMachineCycle(durationMs = FAX_CYCLE_MS) {
 
     const hissGain = audioCtx.createGain();
     hissGain.gain.setValueAtTime(0, dataStart);
-    hissGain.gain.linearRampToValueAtTime(0.075, dataStart + 0.12);
+    hissGain.gain.linearRampToValueAtTime(mobile ? 0.05 : 0.075, dataStart + 0.12);
     hissGain.gain.exponentialRampToValueAtTime(0.001, dataStart + dataDuration);
 
-    const carrier1 = audioCtx.createOscillator();
-    carrier1.type = 'sawtooth';
-    carrier1.frequency.setValueAtTime(1400, dataStart);
-    carrier1.frequency.linearRampToValueAtTime(1750, dataStart + dataDuration * 0.55);
-    carrier1.frequency.linearRampToValueAtTime(1250, dataStart + dataDuration);
+    if (!mobile) {
+        const carrier1 = audioCtx.createOscillator();
+        carrier1.type = 'sawtooth';
+        carrier1.frequency.setValueAtTime(1400, dataStart);
+        carrier1.frequency.linearRampToValueAtTime(1750, dataStart + dataDuration * 0.55);
+        carrier1.frequency.linearRampToValueAtTime(1250, dataStart + dataDuration);
 
-    const carrier2 = audioCtx.createOscillator();
-    carrier2.type = 'square';
-    carrier2.frequency.setValueAtTime(2380, dataStart);
-    carrier2.frequency.linearRampToValueAtTime(1150, dataStart + dataDuration);
+        const carrier2 = audioCtx.createOscillator();
+        carrier2.type = 'square';
+        carrier2.frequency.setValueAtTime(2380, dataStart);
+        carrier2.frequency.linearRampToValueAtTime(1150, dataStart + dataDuration);
 
-    const fmOsc = audioCtx.createOscillator();
-    const fmGain = audioCtx.createGain();
-    fmOsc.frequency.setValueAtTime(48, dataStart);
-    fmGain.gain.setValueAtTime(290, dataStart);
+        const fmOsc = audioCtx.createOscillator();
+        const fmGain = audioCtx.createGain();
+        fmOsc.frequency.setValueAtTime(48, dataStart);
+        fmGain.gain.setValueAtTime(290, dataStart);
 
-    const toneGain = audioCtx.createGain();
-    toneGain.gain.setValueAtTime(0, dataStart);
-    toneGain.gain.linearRampToValueAtTime(0.048, dataStart + 0.18);
-    toneGain.gain.exponentialRampToValueAtTime(0.001, dataStart + dataDuration);
+        const toneGain = audioCtx.createGain();
+        toneGain.gain.setValueAtTime(0, dataStart);
+        toneGain.gain.linearRampToValueAtTime(0.048, dataStart + 0.18);
+        toneGain.gain.exponentialRampToValueAtTime(0.001, dataStart + dataDuration);
 
-    fmOsc.connect(fmGain);
-    fmGain.connect(carrier1.frequency);
-    fmGain.connect(carrier2.frequency);
+        fmOsc.connect(fmGain);
+        fmGain.connect(carrier1.frequency);
+        fmGain.connect(carrier2.frequency);
+        carrier1.connect(toneGain);
+        carrier2.connect(toneGain);
+        toneGain.connect(audioCtx.destination);
+
+        fmOsc.start(dataStart);
+        carrier1.start(dataStart);
+        carrier2.start(dataStart);
+        fmOsc.stop(dataStart + dataDuration);
+        carrier1.stop(dataStart + dataDuration);
+        carrier2.stop(dataStart + dataDuration);
+    }
+
     noiseSource.connect(bandpass);
     bandpass.connect(hissGain);
     hissGain.connect(audioCtx.destination);
-    carrier1.connect(toneGain);
-    carrier2.connect(toneGain);
-    toneGain.connect(audioCtx.destination);
-
-    fmOsc.start(dataStart);
-    carrier1.start(dataStart);
-    carrier2.start(dataStart);
     noiseSource.start(dataStart);
-    fmOsc.stop(dataStart + dataDuration);
-    carrier1.stop(dataStart + dataDuration);
-    carrier2.stop(dataStart + dataDuration);
     noiseSource.stop(dataStart + dataDuration);
 
-    const rollerTimer = setInterval(() => playRetroSound('reelslide'), 1100);
-    faxSoundCleanup.push(() => clearInterval(rollerTimer));
-    setTimeout(() => clearInterval(rollerTimer), durationMs);
+    if (!mobile) {
+        const rollerTimer = setInterval(() => playRetroSound('reelslide'), 1100);
+        faxSoundCleanup.push(() => clearInterval(rollerTimer));
+        setTimeout(() => clearInterval(rollerTimer), durationMs);
+    }
 }
 
 function printedFaxStorageKey() {
@@ -1048,21 +1091,20 @@ function willTriggerTonerEmpty() {
     return (getFaxOperationCount() + 1) % TONER_EMPTY_INTERVAL === 0;
 }
 
-let tonerRefillResolve = null;
-
 async function ensureTonerRefillOnStart() {
     if (!willTriggerTonerEmpty()) return;
 
-    setAppScreen('start', { skipFaxRefresh: true });
-
-    const lcd = document.getElementById('startJitflLcdText');
-    if (lcd) lcd.textContent = 'TOMT FOR TONER/BLEKK';
-
-    document.getElementById('startTonerBanner')?.classList.remove('hidden');
     playRetroSound('reload');
-
     await new Promise((resolve) => {
-        tonerRefillResolve = resolve;
+        showConfirmBox(
+            'TOMT FOR TONER/BLEKK',
+            'Fyll på toner/blekk i faxmaskinen og bekreft for å fortsette.',
+            () => {
+                playRetroSound('key');
+                resolve(true);
+            },
+            () => resolve(false)
+        );
     });
 }
 
@@ -1070,13 +1112,11 @@ function confirmTonerRefill() {
     document.getElementById('startTonerBanner')?.classList.add('hidden');
     playRetroSound('key');
     updateStartScreenAlert();
-    if (tonerRefillResolve) {
-        tonerRefillResolve();
-        tonerRefillResolve = null;
-    }
 }
 
 async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simulatePaperJam = false } = {}) {
+    const { pauseMs, feedMs, cycleMs } = getSendAnimationTiming();
+    try {
     const recipients = Array.isArray(destProfiles) ? destProfiles : [destProfiles];
     const firstDest = recipients[0];
     const isMulti = recipients.length > 1;
@@ -1097,7 +1137,7 @@ async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simula
         'KLAR',
         `SJEKK ARKET — ${destSummary}`
     );
-    playFaxMachineCycle(FAX_CYCLE_MS);
+    playFaxMachineCycle(cycleMs);
 
     if (destLabel) {
         destLabel.textContent = isMulti
@@ -1109,7 +1149,7 @@ async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simula
     sendSheet.classList.add('phase-pause');
     if (lcd) lcd.textContent = 'ARK LASTET';
 
-    await delay(FAX_SEND_PAUSE_MS);
+    await delay(pauseMs);
 
     if (simulatePaperJam) {
         clearFaxSoundCleanup();
@@ -1119,12 +1159,10 @@ async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simula
 
         const recovered = await promptPaperJamRecovery({ mode: 'send' });
         if (!recovered) {
-            hideFaxMachineOverlay();
-            clearFaxSoundCleanup();
             return false;
         }
 
-        playFaxMachineCycle(FAX_CYCLE_MS);
+        playFaxMachineCycle(cycleMs);
     }
 
     statusEl.innerText = 'SENDER...';
@@ -1137,18 +1175,27 @@ async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simula
     rollers?.classList.add('active');
 
     sendSheet.classList.remove('phase-pause');
+    sendSheet.style.animationDuration = `${feedMs}ms`;
     void sendSheet.offsetWidth;
     sendSheet.classList.add('phase-feed');
 
-    await delay(FAX_SEND_FEED_MS);
+    await delay(feedMs);
+
+    sendSheet.style.animationDuration = '';
 
     intakeGlow?.classList.remove('active');
     rollers?.classList.remove('active');
     sendSheet.classList.remove('phase-feed');
     sendSheet.classList.add('phase-pause');
-    hideFaxMachineOverlay();
-    clearFaxSoundCleanup();
     return true;
+    } catch (err) {
+        console.error('runFaxSendAnimation failed', err);
+        return false;
+    } finally {
+        hideFaxMachineOverlay();
+        clearFaxSoundCleanup();
+        setFaxMachineTransmitting(false);
+    }
 }
 
 function syncIncomingFromFetched(fetchedList) {
@@ -1217,6 +1264,8 @@ async function initFaxApp() {
     const p = currentProfile;
     if (!p) return;
 
+    releaseStaleFaxMachineLock();
+
     document.getElementById('sessionUserLabel').innerText = `${p.name} · NR ${p.station_id}`;
     document.getElementById('inboxTrayLabel').innerText = `INNKOMMENDE → NR ${p.station_id}`;
 
@@ -1270,6 +1319,13 @@ function setSendHints(text) {
 function updateSendButtonState() {
     const btn = document.getElementById('startTransmissionBtn');
     if (!btn) return;
+
+    if (isFaxMachineBusy) {
+        setSendHints('Sender fax — vent til animasjonen er ferdig...');
+        btn.disabled = true;
+        btn.classList.add('opacity-40');
+        return;
+    }
 
     const text = (document.getElementById('faxContentInput')?.value || '').trim();
     const recipients = getAllRecipientProfiles();
@@ -1750,7 +1806,9 @@ function updateInboxBadge() {
 
 function setAppScreen(screen, options = {}) {
     if (!APP_SCREENS.includes(screen)) return;
-    if (isFaxMachineBusy && screen !== 'inbox') return;
+    if (isFaxMachineBusy && screen !== 'inbox') {
+        if (!releaseStaleFaxMachineLock()) return;
+    }
 
     currentAppScreen = screen;
     playRetroSound('key');
@@ -2088,7 +2146,12 @@ function startTransmissionFromClick() {
 }
 
 async function startTransmission() {
-    if (isFaxMachineBusy) return;
+    if (isFaxMachineBusy) {
+        if (!releaseStaleFaxMachineLock()) {
+            showMsgBox('FAXMASKIN OPPTATT', 'Vent til sendingen er ferdig, eller lukk eventuelle dialoger.');
+            return;
+        }
+    }
 
     updateSendButtonState();
 
@@ -2120,11 +2183,11 @@ async function startTransmission() {
 
     setAppScreen('send', { skipFaxRefresh: true });
 
+    await ensureTonerRefillOnStart();
+
     const sendBtn = document.getElementById('startTransmissionBtn');
     isFaxMachineBusy = true;
     if (sendBtn) sendBtn.disabled = true;
-
-    await ensureTonerRefillOnStart();
 
     const simulatePaperJam = willTriggerPaperJam();
 
@@ -2176,7 +2239,11 @@ async function startTransmission() {
             : 'Ingen feilmelding på ISDN/WAP-linje99';
         showMsgBox('FAX er Sendt', sentMsg);
         setAppScreen('compose', { skipFaxRefresh: true });
-        await refreshIncomingFaxes();
+        void refreshIncomingFaxes();
+    } catch (err) {
+        console.error('startTransmission failed', err);
+        showMsgBox('SEND FEIL', err?.message || 'Sending feilet. Prøv igjen.');
+        setAppScreen('compose', { skipFaxRefresh: true });
     } finally {
         isFaxMachineBusy = false;
         updateSendButtonState();
