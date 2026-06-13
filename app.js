@@ -149,8 +149,16 @@ function isStandalonePwa() {
         || document.referrer.startsWith('android-app://');
 }
 
+function hasNotificationApi() {
+    return typeof Notification !== 'undefined';
+}
+
+function getNotificationPermission() {
+    return hasNotificationApi() ? Notification.permission : 'default';
+}
+
 function canUsePush() {
-    if (!('PushManager' in window) || !('Notification' in window)) return false;
+    if (!('PushManager' in window) || !hasNotificationApi()) return false;
     if (isIosDevice()) return isStandalonePwa();
     return true;
 }
@@ -167,7 +175,7 @@ function initPwaInstallPrompt() {
         localStorage.removeItem(PWA_INSTALL_DISMISS_KEY);
         updatePwaBanners();
         if (currentProfile) {
-            setupPushNotifications({ requestNow: Notification.permission === 'granted' });
+            setupPushNotifications({ requestNow: getNotificationPermission() === 'granted' });
         }
     });
 
@@ -182,7 +190,7 @@ function shouldShowInstallBanner() {
 
 function shouldShowPushBanner() {
     if (!canUsePush()) return false;
-    if (Notification.permission !== 'default') return false;
+    if (getNotificationPermission() !== 'default') return false;
     if (localStorage.getItem(PWA_PUSH_DISMISS_KEY) === '1') return false;
     if (isIosDevice() && !isStandalonePwa()) return false;
     return true;
@@ -190,7 +198,7 @@ function shouldShowPushBanner() {
 
 function shouldShowPushDeniedBanner() {
     if (!canUsePush()) return false;
-    if (Notification.permission !== 'denied') return false;
+    if (getNotificationPermission() !== 'denied') return false;
     if (localStorage.getItem(PWA_PUSH_DENIED_DISMISS_KEY) === '1') return false;
     return true;
 }
@@ -305,7 +313,7 @@ async function setupPushNotifications(options = {}) {
     const vapidPublic = window.FAXCHAT_PUSH?.vapidPublicKey;
     if (!vapidPublic) return;
 
-    let permission = Notification.permission;
+    let permission = getNotificationPermission();
     if (permission === 'default') {
         if (!options.requestNow) {
             updatePwaBanners();
@@ -1200,7 +1208,7 @@ async function initFaxApp() {
     setAppScreen('start', { skipFaxRefresh: true });
     await migrateLocalReadStatusToServer();
     await refreshIncomingFaxes();
-    await setupPushNotifications({ requestNow: Notification.permission === 'granted' });
+    await setupPushNotifications({ requestNow: getNotificationPermission() === 'granted' });
     updatePwaBanners();
 
     if (!initFaxApp.visibilityHook) {
@@ -1212,7 +1220,7 @@ async function initFaxApp() {
 function onAppVisibilityChange() {
     if (document.visibilityState !== 'visible' || !currentProfile || isFaxMachineBusy) return;
     refreshIncomingFaxes();
-    setupPushNotifications({ requestNow: Notification.permission === 'granted' });
+    setupPushNotifications({ requestNow: getNotificationPermission() === 'granted' });
     updatePwaBanners();
 }
 
