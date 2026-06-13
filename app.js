@@ -44,6 +44,62 @@ async function loadProfile(userHint) {
     return ensured;
 }
 
+async function resolveAuthenticatedUser() {
+    const sb = getSupabase();
+    let { data: { user }, error } = await sb.auth.getUser();
+    if (error || !user) {
+        const { data: refreshData, error: refreshError } = await sb.auth.refreshSession();
+        if (refreshError || !refreshData.session?.user) {
+            throw new Error('Sesjonen er utløpt. Trykk UT og logg inn igjen.');
+        }
+        user = refreshData.session.user;
+    }
+
+    if (!currentProfile || currentProfile.id !== user.id) {
+        currentProfile = await loadProfile(user);
+    }
+    if (!currentProfile || currentProfile.id !== user.id) {
+        throw new Error('Fant ikke brukerprofil. Logg inn på nytt.');
+    }
+
+    return user;
+}
+
+function mapTransmissionError(error) {
+    const message = (error?.message || String(error || '')).toLowerCase();
+    if (message.includes('row-level security')) {
+        return 'Databasen avviste sendingen (sesjon/tilgang). Trykk UT, logg inn på nytt, og send igjen.';
+    }
+    if (message.includes('not authenticated') || message.includes('sesjonen er utløpt')) {
+        return error?.message || 'Sesjonen er utløpt. Logg inn på nytt.';
+    }
+    return error?.message || 'Sending feilet.';
+}
+
+async function insertOutgoingFaxes(rows) {
+    const sb = getSupabase();
+    const user = await resolveAuthenticatedUser();
+    const payload = rows.map((row) => ({
+        recipient_station_id: row.recipient_station_id,
+        content: row.content,
+        image_url: row.image_url || null,
+        stack_order: row.stack_order ?? Date.now()
+    }));
+
+    const { error: rpcError } = await sb.rpc('send_faxes', { p_payload: payload });
+    if (!rpcError) return null;
+
+    const fnMissing = rpcError.code === 'PGRST202'
+        || (rpcError.message || '').toLowerCase().includes('send_faxes');
+    if (!fnMissing) return rpcError;
+
+    const { error: insertError } = await sb.from('faxes').insert(payload.map((row) => ({
+        sender_user_id: user.id,
+        ...row
+    })));
+    return insertError;
+}
+
 function stripInvisibleChars(value) {
     return String(value || '')
         .replace(/[\u200B-\u200D\uFEFF]/g, '')
@@ -2166,11 +2222,9 @@ async function startTransmission() {
             return;
         }
 
-        const sb = getSupabase();
         const stackOrder = Date.now();
         const rows = recipients.map((profile) => {
             const row = {
-                sender_user_id: currentProfile.id,
                 recipient_station_id: profile.station_id,
                 content: text || '[BILDE]',
                 stack_order: stackOrder
@@ -2179,10 +2233,10 @@ async function startTransmission() {
             return row;
         });
 
-        const { error } = await sb.from('faxes').insert(rows);
+        const error = await insertOutgoingFaxes(rows);
 
         if (error) {
-            showMsgBox('TRANSMISSION FEIL', error.message);
+            showMsgBox('TRANSMISSION FEIL', mapTransmissionError(error));
             return;
         }
 
@@ -2210,7 +2264,7 @@ async function startTransmission() {
         void refreshIncomingFaxes();
     } catch (err) {
         console.error('startTransmission failed', err);
-        showMsgBox('SEND FEIL', err?.message || 'Sending feilet. Prøv igjen.');
+        showMsgBox('SEND FEIL', mapTransmissionError(err));
         setAppScreen('compose', { skipFaxRefresh: true });
     } finally {
         isFaxMachineBusy = false;

@@ -129,6 +129,43 @@ $$;
 
 grant execute on function public.ensure_profile() to authenticated;
 
+create or replace function public.send_faxes(p_payload jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  item jsonb;
+  uid uuid := auth.uid();
+begin
+  if uid is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  if p_payload is null or jsonb_typeof(p_payload) <> 'array' then
+    raise exception 'Invalid payload';
+  end if;
+
+  for item in select value from jsonb_array_elements(p_payload)
+  loop
+    insert into public.faxes (sender_user_id, recipient_station_id, content, image_url, stack_order)
+    values (
+      uid,
+      item->>'recipient_station_id',
+      coalesce(item->>'content', ''),
+      nullif(item->>'image_url', ''),
+      coalesce((item->>'stack_order')::bigint, (extract(epoch from now()) * 1000)::bigint)
+    );
+  end loop;
+end;
+$$;
+
+grant execute on function public.send_faxes(jsonb) to authenticated;
+
+grant select, insert, update, delete on public.faxes to authenticated;
+grant select on public.profiles to authenticated;
+
 -- Profiler for brukere som finnes i Authentication uten profil-rad
 with missing as (
   select u.id, u.email, row_number() over (order by u.created_at) as seq
