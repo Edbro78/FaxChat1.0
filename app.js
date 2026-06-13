@@ -620,7 +620,6 @@ const MESSAGE_MAX_LENGTH = 50;
 const FAX_SEND_PAUSE_MS = 2600;
 const FAX_SEND_FEED_MS = 5400;
 const PAPER_JAM_INTERVAL = 10;
-const TONER_EMPTY_INTERVAL = 15;
 let isFaxMachineBusy = false;
 
 function isFaxMachineUiActive() {
@@ -1087,33 +1086,6 @@ function willTriggerPaperJam() {
     return (getFaxOperationCount() + 1) % PAPER_JAM_INTERVAL === 0;
 }
 
-function willTriggerTonerEmpty() {
-    return (getFaxOperationCount() + 1) % TONER_EMPTY_INTERVAL === 0;
-}
-
-async function ensureTonerRefillOnStart() {
-    if (!willTriggerTonerEmpty()) return;
-
-    playRetroSound('reload');
-    await new Promise((resolve) => {
-        showConfirmBox(
-            'TOMT FOR TONER/BLEKK',
-            'Fyll på toner/blekk i faxmaskinen og bekreft for å fortsette.',
-            () => {
-                playRetroSound('key');
-                resolve(true);
-            },
-            () => resolve(false)
-        );
-    });
-}
-
-function confirmTonerRefill() {
-    document.getElementById('startTonerBanner')?.classList.add('hidden');
-    playRetroSound('key');
-    updateStartScreenAlert();
-}
-
 async function runFaxSendAnimation(text, destProfiles, imageUrl = null, { simulatePaperJam = false } = {}) {
     const { pauseMs, feedMs, cycleMs } = getSendAnimationTiming();
     try {
@@ -1221,7 +1193,6 @@ async function printPendingIncomingFaxes() {
     isFaxMachineBusy = true;
     try {
         for (const fax of toPrint) {
-            await ensureTonerRefillOnStart();
             const simulatePaperJam = willTriggerPaperJam();
             const ok = await runFaxReceiveAnimation(fax, { simulatePaperJam });
             if (!ok) break;
@@ -1746,7 +1717,6 @@ function updatePaperGauge() {
 }
 
 window.startTransmissionFromClick = startTransmissionFromClick;
-window.confirmTonerRefill = confirmTonerRefill;
 window.setAppScreen = setAppScreen;
 window.refreshIncomingFaxes = refreshIncomingFaxes;
 window.confirmAlertYes = confirmAlertYes;
@@ -2182,8 +2152,6 @@ async function startTransmission() {
     }
 
     setAppScreen('send', { skipFaxRefresh: true });
-
-    await ensureTonerRefillOnStart();
 
     const sendBtn = document.getElementById('startTransmissionBtn');
     isFaxMachineBusy = true;
