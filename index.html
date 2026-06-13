@@ -8,10 +8,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="FaxChat">
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="assets/icon-192.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png">
+    <link rel="manifest" href="manifest.json?v=4">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/icon-180.png?v=4">
+    <link rel="apple-touch-icon" sizes="192x192" href="assets/icon-192.png?v=4">
+    <link rel="apple-touch-icon" href="assets/icon-180.png?v=4">
+    <link rel="icon" type="image/png" sizes="180x180" href="assets/icon-180.png?v=4">
+    <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png?v=4">
+    <link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png?v=4">
     <title>FaxChat v1.2 - Retro Analog Workstation</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -304,20 +307,11 @@
                                 </div>
                             </div>
                         </div>
-                        <button type="button" onclick="openPenDrawModal()" class="send-pen-btn send-pen-btn--hero btn-retro w-full max-w-xs py-3 text-sm font-bold font-mono mt-4">
-                            <i class="fa-solid fa-pen-nib"></i> Skriv med penn
-                        </button>
                         <p class="jitfl-idle-hint font-mono text-stone-600 text-center text-xs mt-3">Trykk send nedenfor</p>
                     </div>
                 </div>
                 <footer class="app-screen-footer flex-col gap-2 !items-stretch">
                     <p id="sendReadyHintSend" class="text-[10px] font-mono text-amber-800 text-center">—</p>
-                    <div id="sendPenPreview" class="send-pen-preview hidden">
-                        <img id="sendPenPreviewImg" alt="Håndtegnet vedlegg" class="send-pen-preview-img">
-                        <button type="button" onclick="clearFaxImage()" class="send-pen-preview-clear" title="Fjern tegning" aria-label="Fjern tegning">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
-                    </div>
                     <button type="button" id="startTransmissionBtn" onclick="startTransmissionFromClick()" disabled
                             class="btn-hardware-red w-full py-4 text-sm font-extrabold font-mono uppercase tracking-wider disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                         <i class="fa-solid fa-bolt"></i> SEND FAX

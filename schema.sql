@@ -18,11 +18,13 @@ create table if not exists public.faxes (
   recipient_station_id text not null references public.profiles (station_id),
   content text not null,
   image_url text null,
+  read_at timestamptz null,
   stack_order bigint not null default 0,
   created_at timestamptz not null default now()
 );
 
 -- Eksisterende installasjon: alter table public.faxes add column if not exists image_url text null;
+-- Eksisterende installasjon: alter table public.faxes add column if not exists read_at timestamptz null;
 
 create index if not exists faxes_recipient_idx on public.faxes (recipient_station_id, stack_order desc, created_at desc);
 

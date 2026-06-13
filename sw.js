@@ -1,6 +1,7 @@
-/* FaxChat service worker v8 — pushvarsler (PWA fra hjemskjerm) */
+/* FaxChat service worker v9 — pushvarsler (PWA fra hjemskjerm) */
 
-const SW_VERSION = 8;
+const SW_VERSION = 9;
+const APP_ICON = '/assets/icon-192.png?v=4';
 
 self.addEventListener('install', (event) => {
     event.waitUntil(self.skipWaiting());
@@ -65,8 +66,8 @@ self.addEventListener('push', (event) => {
     event.waitUntil(
         self.registration.showNotification(headline, {
             body: '',
-            icon: payload.icon || '/assets/icon-192.png',
-            badge: payload.badge || '/assets/icon-192.png',
+            icon: payload.icon || APP_ICON,
+            badge: payload.badge || APP_ICON,
             tag: payload.tag || 'faxchat-incoming',
             renotify: true,
             data: { url: payload.url || '/', swVersion: SW_VERSION },
