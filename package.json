@@ -1,0 +1,17 @@
+{
+  "name": "faxchat-1.0",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FaxChat PWA",
+  "scripts": {
+    "icons": "node scripts/generate-icons.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Edbro78/FaxChat1.0.git"
+  },
+  "license": "ISC"
+}
