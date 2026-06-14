@@ -107,7 +107,8 @@
                             <div class="jitfl-machine start-jitfl-machine bevel-out">
                                 <div class="jitfl-machine-bezel bevel-out">
                                     <div class="jitfl-lcd lcd-display scanlines">
-                                        <span id="startJitflLcdText" class="jitfl-lcd-text">FAXCHAT READY</span>
+                                        <span id="startJitflLcdText" class="jitfl-lcd-text">FaxChat
+Klar</span>
                                     </div>
                                     <div class="jitfl-leds">
                                         <span class="jitfl-led jitfl-led--green lit" aria-hidden="true"></span>
@@ -115,9 +116,18 @@
                                     </div>
                                 </div>
                                 <div class="jitfl-chassis-body bevel-out">
-                                    <div class="jitfl-brand start-jitfl-brand">FaxChat International<br>OKI - sertified<br>Syntax2000</div>
+                                    <div class="jitfl-brand start-jitfl-brand">
+                                        <img src="assets/televerket-logo.png?v=2" alt="Televerket" class="start-jitfl-televerket-logo" width="404" height="404">
+                                        <p class="start-jitfl-televerket-caption">Første norske App som er godkjent av Televerket</p>
+                                    </div>
                                     <div class="start-jitfl-output-slot">
                                         <div class="start-jitfl-slot-glow" aria-hidden="true"></div>
+                                        <div class="start-jitfl-output-ticker" aria-hidden="true">
+                                            <div class="start-jitfl-ticker-track">
+                                                <span class="start-jitfl-ticker-text">FaxChat ---- godkjent av Televerket</span>
+                                                <span class="start-jitfl-ticker-text">FaxChat ---- godkjent av Televerket</span>
+                                            </div>
+                                        </div>
                                         <div class="start-jitfl-output-rim"></div>
                                     </div>
                                     <div class="start-jitfl-status-strip" aria-hidden="true">
@@ -160,7 +170,7 @@
             <!-- 1. Telefonkatalog -->
             <section id="screenKartotek" class="app-screen" aria-label="Telefonkatalog">
                 <div class="app-screen-header">
-                    <h2 class="app-screen-title"><i class="fa-solid fa-box-archive"></i> TELEFONKATALOG</h2>
+                    <h2 class="app-screen-title"><i class="fa-solid fa-box-archive"></i> Faxkatalog</h2>
                     <p class="app-screen-desc">Klikk et kort for å velge mottaker</p>
                 </div>
                 <div class="app-screen-body app-screen-body--center">
@@ -205,7 +215,7 @@
                         </div>
                         <div id="selectedRecipientsList" class="recipient-chip-list flex flex-wrap gap-1 mt-1"></div>
                     </div>
-                    <div class="grid grid-cols-3 gap-2 bg-[#c6beaf] p-3 border-2 border-[#a49a88] rounded-sm shadow-inner flex-grow content-center max-h-[min(52vh,420px)]">
+                    <div class="dialer-keypad grid grid-cols-3 bg-[#c6beaf] border-2 border-[#a49a88] rounded-sm shadow-inner flex-grow content-center">
                         <button type="button" onclick="pressDialKey('1')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">1</button>
                         <button type="button" onclick="pressDialKey('2')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">2</button>
                         <button type="button" onclick="pressDialKey('3')" class="btn-retro py-4 font-extrabold text-stone-800 text-xl">3</button>
@@ -273,7 +283,7 @@
                 <div class="app-screen-header app-screen-header--compact">
                     <div class="flex justify-between items-center w-full gap-2">
                         <h2 class="app-screen-title !mb-0"><i class="fa-solid fa-fax"></i> SEND</h2>
-                        <div class="flex items-center gap-2 text-[10px] font-mono text-stone-700">
+                        <div class="send-header-paper-meta flex items-center gap-2 text-[10px] font-mono text-stone-700">
                             <span>PAPIR <strong id="paperPercentText">6/6</strong></span>
                             <div class="paper-indicators" id="paperIndicatorsContainer"></div>
                             <button type="button" onclick="reloadPaper()" class="btn-reload-paper btn-hardware-red" title="Fyll på papir">
@@ -289,10 +299,9 @@
                     <div id="jitflIdlePreview" class="jitfl-idle-preview" aria-hidden="true">
                         <div class="jitfl-status-panel lcd-display scanlines">
                             <div class="jitfl-status-row jitfl-status-row--hero">
-                                <span class="jitfl-status-text">FaxChat er klargjort for ISDN/WAP</span>
+                                <span class="jitfl-status-text">Fax er klar til sending</span>
                                 <div class="jitfl-status-leds">
                                     <span class="jitfl-status-led jitfl-status-led--hero lit" aria-hidden="true"></span>
-                                    <span class="jitfl-status-led lit" aria-hidden="true"></span>
                                 </div>
                             </div>
                         </div>

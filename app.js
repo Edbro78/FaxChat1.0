@@ -1796,7 +1796,7 @@ function updateStartScreenAlert() {
     rxLed?.classList.toggle('lit', hasPending);
 
     if (lcd) {
-        lcd.textContent = hasPending ? 'Ny innkommende FAX' : 'FAXCHAT READY';
+        lcd.textContent = hasPending ? 'Ny innkommende FAX' : 'FaxChat\nKlar';
     }
 
     idleEl?.classList.toggle('hidden', hasPending);

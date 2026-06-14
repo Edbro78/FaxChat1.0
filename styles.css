@@ -297,6 +297,34 @@ body,
     font-family: 'Courier Prime', monospace;
 }
 
+#screenKartotek .app-screen-title {
+    text-transform: none;
+}
+
+#screenDialer .app-screen-desc {
+    font-size: calc(10px * 1.3);
+}
+
+#screenSend .app-screen-header--compact .app-screen-title {
+    font-size: calc(13px * 1.3);
+}
+
+#screenSend .app-screen-header--compact .send-header-paper-meta {
+    font-size: calc(10px * 1.3);
+}
+
+#screenSend .app-screen-header--compact .btn-reload-paper {
+    font-size: calc(11px * 1.3);
+}
+
+#screenSend .app-screen-header--compact .btn-reload-paper i {
+    font-size: calc(14px * 1.3);
+}
+
+#telefaxDestIdSend {
+    font-size: calc(10px * 1.5);
+}
+
 /* SKRIV-fanen: 125 % av standard (50 % + 50 % til) */
 .app-screen--compose .app-screen-title {
     font-size: 29.25px;
@@ -388,6 +416,25 @@ body,
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
+.dialer-keypad {
+    gap: calc(0.5rem * 0.85);
+    padding: calc(0.75rem * 0.85);
+    max-height: min(44.2vh, 357px);
+}
+
+.dialer-keypad .btn-retro {
+    padding-top: calc(1rem * 0.85);
+    padding-bottom: calc(1rem * 0.85);
+}
+
+.dialer-keypad .btn-retro.text-xl {
+    font-size: calc(1.25rem * 0.85);
+}
+
+.dialer-keypad .btn-retro.text-sm {
+    font-size: calc(0.875rem * 0.85);
+}
+
 .recipient-add-btn {
     display: inline-flex;
     align-items: center;
@@ -416,7 +463,7 @@ body,
 
 .recipient-empty-hint {
     font-family: 'Share Tech Mono', monospace;
-    font-size: 9px;
+    font-size: calc(9px * 1.3);
     color: #6b6457;
     font-style: italic;
 }
@@ -555,29 +602,61 @@ body,
     min-width: 168px;
     min-height: 43px;
     padding: 7px 12px;
+    justify-content: center;
 }
 
 .start-jitfl-scene .jitfl-lcd-text {
     font-size: clamp(1.89rem, 7.56vw, 2.65rem);
+    white-space: pre-line;
+    line-height: 1.05;
+    text-align: center;
+    width: 100%;
+    animation: start-jitfl-lcd-blink 1s ease-in-out infinite alternate;
+}
+
+@keyframes start-jitfl-lcd-blink {
+    from { opacity: 1; }
+    to { opacity: 0.3; }
 }
 
 .start-jitfl-scene .jitfl-brand,
 .start-jitfl-brand {
-    font-size: clamp(1.32rem, 5.88vw, 1.86rem);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     margin-bottom: 12px;
-    line-height: 1.12;
-    letter-spacing: 0.06em;
-    text-align: left;
+    text-align: center;
+}
+
+.start-jitfl-televerket-logo {
+    width: clamp(293px, 78.6vw, 404px);
+    height: auto;
+    margin-bottom: 8px;
+}
+
+.start-jitfl-televerket-caption {
+    font-family: 'VT323', monospace;
+    font-size: clamp(0.95rem, 3.8vw, 1.15rem);
+    color: #44403c;
+    letter-spacing: 0.04em;
+    line-height: 1.15;
+    margin: 0;
+    text-align: center;
 }
 
 .start-jitfl-scene .jitfl-led {
-    width: 24px;
-    height: 24px;
-    border-width: 2px;
+    width: 48px;
+    height: 48px;
+    border-width: 3px;
 }
 
 .start-jitfl-scene .jitfl-leds {
-    gap: 10px;
+    gap: 14px;
+}
+
+.start-jitfl-scene .jitfl-led--green.lit {
+    box-shadow: 0 0 20px #00ff00, 0 0 34px rgba(0, 255, 0, 0.45), inset 0 0 6px #fff;
+    animation: jitfl-led-blink 1s ease-in-out infinite alternate;
 }
 
 .start-jitfl-scene .jitfl-machine-bezel {
@@ -696,13 +775,51 @@ body,
 .start-jitfl-output-rim {
     position: absolute;
     inset: 0;
+    z-index: 3;
     border-top: 2px solid rgba(255, 255, 255, 0.08);
     pointer-events: none;
 }
 
+.start-jitfl-output-ticker {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+
+.start-jitfl-ticker-track {
+    display: flex;
+    flex-shrink: 0;
+    animation: start-jitfl-ticker-scroll 8s linear infinite;
+}
+
+.start-jitfl-ticker-text {
+    flex-shrink: 0;
+    padding: 0 1.5rem;
+    font-family: 'VT323', monospace;
+    font-size: clamp(1.1rem, 4.5vw, 1.35rem);
+    color: #e7e5e4;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    text-shadow: 0 0 6px rgba(255, 255, 255, 0.35);
+    animation: start-jitfl-ticker-blink 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes start-jitfl-ticker-scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+
+@keyframes start-jitfl-ticker-blink {
+    from { opacity: 1; }
+    to { opacity: 0.25; }
+}
+
 #startJitflLedRx.lit {
     background: #ff3333;
-    box-shadow: 0 0 17px #ff0000, 0 0 26px rgba(255, 0, 0, 0.45);
+    box-shadow: 0 0 24px #ff0000, 0 0 40px rgba(255, 0, 0, 0.45);
     animation: jitfl-led-blink 0.32s ease-in-out infinite alternate;
 }
 
@@ -2019,20 +2136,20 @@ input {
 
 .jitfl-idle-preview .jitfl-status-panel {
     width: 100%;
-    max-width: 624px;
-    padding: 31px 27px;
+    max-width: calc(624px * 1.4);
+    padding: calc(31px * 1.4) calc(27px * 1.4);
     display: flex;
     flex-direction: column;
-    gap: 23px;
-    border: 4px solid #5a5142;
-    box-shadow: inset 0 0 23px rgba(0, 0, 0, 0.85);
+    gap: calc(23px * 1.4);
+    border: calc(4px * 1.4) solid #5a5142;
+    box-shadow: inset 0 0 calc(23px * 1.4) rgba(0, 0, 0, 0.85);
 }
 
 .jitfl-idle-preview .jitfl-status-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 20px;
+    gap: calc(20px * 1.4);
 }
 
 .jitfl-idle-preview .jitfl-status-row--hero {
@@ -2043,18 +2160,14 @@ input {
 
 .jitfl-idle-preview .jitfl-status-row--hero .jitfl-status-leds {
     display: flex;
-    gap: 13px;
+    gap: calc(13px * 1.4);
     align-items: center;
     flex-shrink: 0;
 }
 
-.jitfl-idle-preview .jitfl-status-row--hero .jitfl-status-leds .jitfl-status-led:nth-child(2).lit {
-    animation-delay: 0.15s;
-}
-
 .jitfl-idle-preview .jitfl-status-text {
     font-family: 'VT323', monospace;
-    font-size: clamp(1.95rem, 8.2vw, 2.63rem);
+    font-size: clamp(calc(1.95rem * 1.4), calc(8.2vw * 1.4), calc(2.63rem * 1.4));
     letter-spacing: 0.04em;
     line-height: 1.2;
     text-align: left;
@@ -2062,17 +2175,17 @@ input {
 }
 
 .jitfl-idle-preview .jitfl-status-row--hero .jitfl-status-text {
-    font-size: clamp(2.05rem, 8.8vw, 2.83rem);
+    font-size: clamp(calc(2.05rem * 1.4), calc(8.8vw * 1.4), calc(2.83rem * 1.4));
 }
 
 .jitfl-idle-preview .jitfl-status-led {
     flex-shrink: 0;
-    width: 27px;
-    height: 27px;
+    width: calc(27px * 1.4);
+    height: calc(27px * 1.4);
     border-radius: 50%;
-    border: 3px solid #3d3830;
+    border: calc(3px * 1.4) solid #3d3830;
     background: #444;
-    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 calc(1px * 1.4) calc(4px * 1.4) rgba(0, 0, 0, 0.5);
 }
 
 .jitfl-idle-preview .jitfl-status-led.lit {
@@ -2081,9 +2194,9 @@ input {
 }
 
 .jitfl-idle-preview .jitfl-status-led--hero.lit {
-    width: 39px;
-    height: 39px;
-    border-width: 4px;
+    width: calc(39px * 1.4);
+    height: calc(39px * 1.4);
+    border-width: calc(4px * 1.4);
     animation: jitfl-status-blink-hero 0.45s ease-in-out infinite alternate;
 }
 
