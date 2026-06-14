@@ -1976,6 +1976,13 @@ input {
     text-align: center;
 }
 
+.send-jitfl-brand {
+    font-size: clamp(0.72rem, 2.8vw, 0.95rem);
+    letter-spacing: 0.04em;
+    line-height: 1.15;
+    max-width: 100%;
+}
+
 .jitfl-intake-slot {
     position: relative;
     height: 28px;
