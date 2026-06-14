@@ -56,6 +56,9 @@
                     AKTIVER LINJE
                 </button>
             </form>
+            <button type="button" onclick="showNewUserDialog()" class="btn-retro w-full py-3 text-xs font-bold font-mono mt-3">
+                Ny Faxchat bruker
+            </button>
         </div>
     </div>
 
@@ -365,9 +368,9 @@ Klar</span>
             <div id="faxMachineReceiveLayout" class="fax-machine-unit fax-receive-scene flex flex-col items-center justify-start flex-grow min-h-0">
                 <div class="fax-machine-chassis w-full shrink-0">
                     <div class="fax-machine-face relative px-3 py-2 bg-gradient-to-b from-[#4a443c] to-[#353028] border-4 border-[#1a1814]">
-                        <div class="flex items-center justify-center gap-2 mb-1">
+                        <div class="flex items-center justify-center gap-2 mb-1 flex-wrap">
                             <i class="fa-solid fa-fax text-xl text-stone-300 opacity-80"></i>
-                            <span class="text-[10px] font-mono text-stone-200 uppercase">PANASONIC FX-99</span>
+                            <span class="fax-receive-machine-label text-[10px] font-mono text-stone-200">FaxChat print i produksjon - Godkjent av Televerket</span>
                         </div>
                         <div class="fax-output-slot relative mx-auto w-[92%] h-2.5 bg-black border-2 border-[#1a1814] shadow-inner rounded-sm overflow-hidden">
                             <div id="faxScanLine" class="fax-scan-line hidden"></div>

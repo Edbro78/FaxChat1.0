@@ -122,6 +122,13 @@ function mapLoginError(error) {
     return error?.message || 'Innlogging feilet.';
 }
 
+function showNewUserDialog() {
+    showMsgBox(
+        'NY FAXCHAT BRUKER',
+        'Det er 12 mnd behandlingstid hos Televerket for opprettelse av nye brukere hos FaxChat. Søknad sendes til Faxnummer 1'
+    );
+}
+
 async function handleLoginSubmit(event) {
     event.preventDefault();
     const errEl = document.getElementById('loginError');
@@ -1778,6 +1785,7 @@ window.refreshIncomingFaxes = refreshIncomingFaxes;
 window.confirmAlertYes = confirmAlertYes;
 window.confirmAlertNo = confirmAlertNo;
 window.closeAlert = closeAlert;
+window.showNewUserDialog = showNewUserDialog;
 window.reloadPaper = reloadPaper;
 window.openInboxForPrint = openInboxForPrint;
 window.shredTopPaper = shredTopPaper;

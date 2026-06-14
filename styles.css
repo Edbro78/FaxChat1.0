@@ -1563,8 +1563,17 @@ input {
     font-size: 1.5rem;
 }
 
-.fax-machine-overlay.mode-receive .fax-machine-face span {
+.fax-machine-overlay.mode-receive .fax-machine-face span,
+.fax-receive-machine-label {
     font-size: 12px;
+}
+
+.fax-receive-machine-label {
+    text-align: center;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    max-width: 100%;
 }
 
 .fax-machine-overlay.mode-receive .fax-output-slot {
