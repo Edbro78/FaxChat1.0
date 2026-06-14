@@ -1785,7 +1785,6 @@ window.shredTopPaper = shredTopPaper;
 function updateStartScreenAlert() {
     const wrap = document.getElementById('startFaxMachineWrap');
     const lcd = document.getElementById('startJitflLcdText');
-    const rxLed = document.getElementById('startJitflLedRx');
     const idleEl = document.getElementById('startIncomingIdle');
     const actionBtn = document.getElementById('startIncomingAction');
     const actionText = document.getElementById('startIncomingActionText');
@@ -1793,10 +1792,9 @@ function updateStartScreenAlert() {
     const hasPending = count > 0;
 
     wrap?.classList.toggle('start-fax--incoming', hasPending);
-    rxLed?.classList.toggle('lit', hasPending);
 
     if (lcd) {
-        lcd.textContent = hasPending ? 'Ny innkommende FAX' : 'FaxChat\nKlar';
+        lcd.textContent = hasPending ? 'Ny FAX' : 'FaxChat\nKlar';
     }
 
     idleEl?.classList.toggle('hidden', hasPending);
